@@ -1,0 +1,109 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{6DD08092-6DEE-4F2E-BCFA-0081AE361455}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>NanoBus.Tests.Net45</RootNamespace>
+    <AssemblyName>NanoBus.Tests.Net45</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;NET45</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE;NET45</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Autofac">
+      <HintPath>..\packages\Autofac.3.4.1\lib\net40\Autofac.dll</HintPath>
+    </Reference>
+    <Reference Include="Nimbus.InfrastructureContracts">
+      <HintPath>..\packages\Nimbus.InfrastructureContracts.1.3.0.2\lib\net45\Nimbus.InfrastructureContracts.dll</HintPath>
+    </Reference>
+    <Reference Include="Nimbus.MessageContracts">
+      <HintPath>..\packages\Nimbus.MessageContracts.1.3.0.2\lib\net45\Nimbus.MessageContracts.dll</HintPath>
+    </Reference>
+    <Reference Include="nunit.framework">
+      <HintPath>..\packages\NUnit.2.6.3\lib\nunit.framework.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\NanoBus.Tests\Commands\CommandTests.cs">
+      <Link>Commands\CommandTests.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Commands\TestCommand.cs">
+      <Link>Commands\TestCommand.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Commands\TestCommandHandler.cs">
+      <Link>Commands\TestCommandHandler.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Events\Multicast\AnotherTestMultiCastEventHandler.cs">
+      <Link>Events\Multicast\AnotherTestMultiCastEventHandler.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Events\Multicast\EventTests.cs">
+      <Link>Events\Multicast\EventTests.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Events\Multicast\TestMultiCastEvent.cs">
+      <Link>Events\Multicast\TestMultiCastEvent.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Events\Multicast\TestMultiCastEventHandler.cs">
+      <Link>Events\Multicast\TestMultiCastEventHandler.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Requests\RequestTests.cs">
+      <Link>Requests\RequestTests.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Requests\TestRequest.cs">
+      <Link>Requests\TestRequest.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Requests\TestRequestHandler.cs">
+      <Link>Requests\TestRequestHandler.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\Requests\TestResponse.cs">
+      <Link>Requests\TestResponse.cs</Link>
+    </Compile>
+    <Compile Include="..\NanoBus.Tests\SetupBus.cs">
+      <Link>SetupBus.cs</Link>
+    </Compile>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NanoBus.Net45\NanoBus.Net45.csproj">
+      <Project>{b1d817a0-37ae-4e98-af9c-4bfd91fba613}</Project>
+      <Name>NanoBus.Net45</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
