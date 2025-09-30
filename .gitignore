@@ -173,3 +173,10 @@ UpgradeLog*.htm
 # Microsoft Fakes
 FakesAssemblies/
 /src/NanoBus.Package
+
+# Test Results and Coverage
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+artifacts/

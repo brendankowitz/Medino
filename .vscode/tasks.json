@@ -1,0 +1,96 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/Medino.sln",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "clean",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "clean",
+        "${workspaceFolder}/src/Medino.sln"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/src/Medino.Tests/Medino.Tests.csproj",
+        "--no-build",
+        "--verbosity",
+        "normal"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "dependsOn": "build"
+    },
+    {
+      "label": "build and test",
+      "dependsOn": [
+        "build",
+        "test"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "watch tests",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "watch",
+        "test",
+        "${workspaceFolder}/src/Medino.Tests/Medino.Tests.csproj"
+      ],
+      "problemMatcher": "$msCompile",
+      "isBackground": true
+    },
+    {
+      "label": "test with coverage",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/src/Medino.Tests/Medino.Tests.csproj",
+        "--collect:XPlat Code Coverage",
+        "--results-directory",
+        "${workspaceFolder}/TestResults"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "coverage report",
+      "command": "dotnet",
+      "type": "shell",
+      "args": [
+        "reportgenerator",
+        "-reports:${workspaceFolder}/TestResults/**/coverage.cobertura.xml",
+        "-targetdir:${workspaceFolder}/TestResults/CoverageReport",
+        "-reporttypes:Html;TextSummary"
+      ],
+      "dependsOn": "test with coverage",
+      "problemMatcher": []
+    }
+  ]
+}

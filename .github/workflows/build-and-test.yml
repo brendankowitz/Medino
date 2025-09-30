@@ -16,6 +16,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # GitVersion needs full history
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -29,7 +31,7 @@ jobs:
       run: dotnet build src/Medino.sln --configuration Release --no-restore
 
     - name: Run tests
-      run: dotnet test src/Medino.sln --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+      run: dotnet test src/Medino.sln --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
     - name: Upload test results
       if: always()
@@ -37,3 +39,10 @@ jobs:
       with:
         name: test-results
         path: '**/test-results.trx'
+
+    - name: Upload coverage reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports
+        path: TestResults/**/coverage.cobertura.xml
