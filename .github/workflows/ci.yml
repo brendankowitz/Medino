@@ -1,0 +1,42 @@
+name: CI Build
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'src/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: CI Build and Test
+    uses: ./.github/workflows/build-and-test.yml
+    with:
+      dotnet-version: '9.0.x'
+
+  # Optional: Add package publishing job for CI builds
+  # Note: dotnet pack automatically builds for ALL target frameworks (net8.0 and net9.0)
+  # defined in the .csproj files, so both will be included in the NuGet package
+  # publish:
+  #   name: Publish Packages
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   if: github.ref == 'refs/heads/master'
+  #
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+  #
+  #   - name: Setup .NET
+  #     uses: actions/setup-dotnet@v4
+  #     with:
+  #       dotnet-version: '9.0.x'
+  #
+  #   - name: Pack NuGet packages
+  #     run: |
+  #       dotnet pack src/Medino/Medino.csproj --configuration Release --output ./packages
+  #       dotnet pack src/Medino.Extensions.DependencyInjection/Medino.Extensions.DependencyInjection.csproj --configuration Release --output ./packages
+  #
+  #   - name: Push to NuGet
+  #     run: dotnet nuget push ./packages/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
