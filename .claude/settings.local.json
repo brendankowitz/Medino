@@ -15,7 +15,8 @@
       "Bash(rm:*)",
       "mcp__ide__getDiagnostics",
       "Bash(dotnet new:*)",
-      "Bash(dotnet sln:*)"
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet pack:*)"
     ],
     "deny": [],
     "ask": []

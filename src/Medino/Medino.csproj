@@ -7,15 +7,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>Medino</PackageId>
-    <Version>2.0.0</Version>
     <Authors>Medino Contributors</Authors>
     <Description>A lightweight, in-process mediator for .NET with support for commands, queries, events, pipeline behaviors, and exception handling. Provides a simple migration path from MediatR.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/yourusername/Medino</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/yourusername/Medino</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/brendankowitz/Medino</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/brendankowitz/Medino</RepositoryUrl>
     <PackageTags>mediator;cqrs;commands;queries;events;pipeline;medino</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Medino</RootNamespace>
     <AssemblyName>Medino</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>
