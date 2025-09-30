@@ -94,6 +94,137 @@ public class PipelineBehaviorBaseTests : IDisposable
         var ex = await Assert.ThrowsAsync<ArgumentException>(async () => await _mediator.SendAsync(request));
         Assert.Contains("Invalid value", ex.Message);
     }
+
+    [Fact]
+    public async Task PipelineBehaviorBase_BeforeOnly_ShouldNotCallAfter()
+    {
+        // Arrange
+        var behavior = new TestBeforeOnlyBehavior();
+        var request = new BaseTestRequest { Value = "test" };
+        var nextCalled = false;
+
+        // Act
+        var response = await behavior.HandleAsync(
+            request,
+            () =>
+            {
+                nextCalled = true;
+                return Task.FromResult("response");
+            },
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal("response", response);
+        Assert.True(behavior.BeforeCalled);
+        Assert.False(behavior.AfterCalled);
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task PipelineBehaviorBase_AfterOnly_ShouldNotCallBefore()
+    {
+        // Arrange
+        var behavior = new TestAfterOnlyBehavior();
+        var request = new BaseTestRequest { Value = "test" };
+        var nextCalled = false;
+
+        // Act
+        var response = await behavior.HandleAsync(
+            request,
+            () =>
+            {
+                nextCalled = true;
+                return Task.FromResult("response");
+            },
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal("response", response);
+        Assert.False(behavior.BeforeCalled);
+        Assert.True(behavior.AfterCalled);
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task PipelineBehaviorBase_NeitherOverridden_ShouldStillExecuteHandler()
+    {
+        // Arrange
+        var behavior = new TestEmptyBehavior();
+        var request = new BaseTestRequest { Value = "test" };
+        var nextCalled = false;
+
+        // Act
+        var response = await behavior.HandleAsync(
+            request,
+            () =>
+            {
+                nextCalled = true;
+                return Task.FromResult("response");
+            },
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal("response", response);
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task PipelineBehaviorBase_SupportsCancellation()
+    {
+        // Arrange
+        var behavior = new TestCancellationBehavior();
+        var request = new BaseTestRequest { Value = "test" };
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await behavior.HandleAsync(
+                request,
+                () => Task.FromResult("response"),
+                cts.Token));
+    }
+}
+
+// Test behavior that only overrides Before
+public class TestBeforeOnlyBehavior : PipelineBehaviorBase<BaseTestRequest, string>
+{
+    public bool BeforeCalled { get; private set; }
+    public bool AfterCalled { get; private set; }
+
+    protected override Task BeforeAsync(BaseTestRequest request, CancellationToken cancellationToken)
+    {
+        BeforeCalled = true;
+        return Task.CompletedTask;
+    }
+}
+
+// Test behavior that only overrides After
+public class TestAfterOnlyBehavior : PipelineBehaviorBase<BaseTestRequest, string>
+{
+    public bool BeforeCalled { get; private set; }
+    public bool AfterCalled { get; private set; }
+
+    protected override Task AfterAsync(BaseTestRequest request, string response, CancellationToken cancellationToken)
+    {
+        AfterCalled = true;
+        return Task.CompletedTask;
+    }
+}
+
+// Test behavior that overrides nothing (tests defaults)
+public class TestEmptyBehavior : PipelineBehaviorBase<BaseTestRequest, string>
+{
+}
+
+// Test behavior that checks cancellation
+public class TestCancellationBehavior : PipelineBehaviorBase<BaseTestRequest, string>
+{
+    protected override Task BeforeAsync(BaseTestRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
 }
 
 // Test request and handler

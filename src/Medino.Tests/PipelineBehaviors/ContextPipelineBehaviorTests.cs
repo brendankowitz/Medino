@@ -114,6 +114,154 @@ public class ContextPipelineBehaviorTests : IDisposable
         // Handler receives transformed value
         Assert.Equal("Handled: ORIGINAL", response);
     }
+
+    [Fact]
+    public void PipelineContext_Constructor_ShouldInitializeRequest()
+    {
+        // Arrange & Act
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+
+        // Assert
+        Assert.NotNull(context.Request);
+        Assert.Equal("test", context.Request.Value);
+        Assert.Empty(context.Metadata);
+    }
+
+    [Fact]
+    public void PipelineContext_Constructor_ShouldThrowOnNullRequest()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new PipelineContext<MetadataRequest>(null!));
+    }
+
+    [Fact]
+    public void PipelineContext_SetMetadata_ShouldAddMetadata()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+
+        // Act
+        context.SetMetadata("key1", "value1");
+        context.SetMetadata("key2", 123);
+
+        // Assert
+        Assert.Equal(2, context.Metadata.Count);
+        Assert.Equal("value1", context.GetMetadata<string>("key1"));
+        Assert.Equal(123, context.GetMetadata<int>("key2"));
+    }
+
+    [Fact]
+    public void PipelineContext_SetMetadata_ShouldOverwriteExisting()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+        context.SetMetadata("key", "value1");
+
+        // Act
+        context.SetMetadata("key", "value2");
+
+        // Assert
+        Assert.Single(context.Metadata);
+        Assert.Equal("value2", context.GetMetadata<string>("key"));
+    }
+
+    [Fact]
+    public void PipelineContext_SetMetadata_ShouldThrowOnNullKey()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => context.SetMetadata(null!, "value"));
+        Assert.Throws<ArgumentException>(() => context.SetMetadata("", "value"));
+        Assert.Throws<ArgumentException>(() => context.SetMetadata("  ", "value"));
+    }
+
+    [Fact]
+    public void PipelineContext_SetMetadata_ShouldThrowOnNullValue()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => context.SetMetadata("key", null!));
+    }
+
+    [Fact]
+    public void PipelineContext_GetMetadata_ShouldReturnDefaultForMissingKey()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+
+        // Act
+        var result = context.GetMetadata<string>("nonexistent");
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void PipelineContext_GetMetadata_ShouldReturnDefaultForWrongType()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+        context.SetMetadata("key", "string value");
+
+        // Act
+        var result = context.GetMetadata<int>("key");
+
+        // Assert
+        Assert.Equal(0, result);
+    }
+
+    [Fact]
+    public void PipelineContext_HasMetadata_ShouldReturnTrueForExistingKey()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+        context.SetMetadata("key", "value");
+
+        // Act & Assert
+        Assert.True(context.HasMetadata("key"));
+        Assert.False(context.HasMetadata("nonexistent"));
+    }
+
+    [Fact]
+    public void PipelineContext_Request_CanBeReplaced()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "original" };
+        var context = new PipelineContext<MetadataRequest>(request);
+
+        // Act
+        context.Request = new MetadataRequest { Value = "replaced" };
+
+        // Assert
+        Assert.Equal("replaced", context.Request.Value);
+    }
+
+    [Fact]
+    public void PipelineContext_Metadata_IsReadOnly()
+    {
+        // Arrange
+        var request = new MetadataRequest { Value = "test" };
+        var context = new PipelineContext<MetadataRequest>(request);
+        context.SetMetadata("key", "value");
+
+        // Act
+        var metadata = context.Metadata;
+
+        // Assert
+        Assert.IsAssignableFrom<IReadOnlyDictionary<string, object>>(metadata);
+    }
 }
 
 // Test request and handlers for tenant enrichment

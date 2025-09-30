@@ -65,6 +65,32 @@
       ],
       "problemMatcher": "$msCompile",
       "isBackground": true
+    },
+    {
+      "label": "test with coverage",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/src/Medino.Tests/Medino.Tests.csproj",
+        "--collect:XPlat Code Coverage",
+        "--results-directory",
+        "${workspaceFolder}/TestResults"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "coverage report",
+      "command": "dotnet",
+      "type": "shell",
+      "args": [
+        "reportgenerator",
+        "-reports:${workspaceFolder}/TestResults/**/coverage.cobertura.xml",
+        "-targetdir:${workspaceFolder}/TestResults/CoverageReport",
+        "-reporttypes:Html;TextSummary"
+      ],
+      "dependsOn": "test with coverage",
+      "problemMatcher": []
     }
   ]
 }
