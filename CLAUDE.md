@@ -152,6 +152,31 @@ The project uses **xUnit** as its testing framework:
 - Use `IClassFixture<T>` for shared context across tests in a class
 - Use `[Collection]` with `ICollectionFixture<T>` for shared context across test classes
 
+## GitHub Actions Workflows
+
+The repository includes three GitHub Actions workflows:
+
+### 1. Reusable Build and Test Workflow (`build-and-test.yml`)
+- Shared workflow called by both PR and CI workflows
+- Sets up .NET SDK (configurable version, defaults to 9.0.x)
+- Restores dependencies, builds in Release configuration (builds for ALL target frameworks: net8.0 and net9.0)
+- Runs tests with trx logger and uploads test results as artifacts
+- Tests run on .NET 9 (the latest), but build validates both target frameworks
+
+### 2. PR Validation Workflow (`pr.yml`)
+- Triggers on pull requests to `master` or `main` branches
+- Only runs when changes are made to `src/**` or workflow files
+- Uses the shared build-and-test workflow
+
+### 3. CI Build Workflow (`ci.yml`)
+- Triggers on pushes to `master` or `main` branches
+- Can be manually triggered via `workflow_dispatch`
+- Uses the shared build-and-test workflow
+- Includes commented-out package publishing job that when enabled will:
+  - Use `dotnet pack` which automatically builds for ALL target frameworks (net8.0 and net9.0)
+  - Create NuGet packages containing both framework versions
+  - Push packages to NuGet.org (requires `NUGET_API_KEY` secret)
+
 ## Development Guidelines
 
 ### Adding New Features
