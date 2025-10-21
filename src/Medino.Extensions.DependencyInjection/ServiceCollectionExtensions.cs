@@ -94,11 +94,11 @@ public static class ServiceCollectionExtensions
 
                         if (genericTypeDef == commandHandlerType)
                         {
-                            services.AddTransient(@interface, type);
+                            services.TryAddTransient(@interface, type);
                         }
                         else if (genericTypeDef == requestHandlerType)
                         {
-                            services.AddTransient(@interface, type);
+                            services.TryAddTransient(@interface, type);
                         }
                     }
                 }
@@ -109,6 +109,7 @@ public static class ServiceCollectionExtensions
     private static void RegisterNotificationHandlers(IServiceCollection services, Assembly[] assemblies)
     {
         var notificationHandlerType = typeof(INotificationHandler<>);
+        var registeredHandlers = new HashSet<(Type interfaceType, Type implementationType)>();
 
         foreach (var assembly in assemblies)
         {
@@ -124,7 +125,12 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.AddTransient(@interface, type);
+                    // Use AddTransient (not TryAddTransient) to allow multiple handlers per notification
+                    // Track registrations to avoid duplicates
+                    if (registeredHandlers.Add((@interface, type)))
+                    {
+                        services.AddTransient(@interface, type);
+                    }
                 }
             }
         }
@@ -148,7 +154,7 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.AddTransient(@interface, type);
+                    services.TryAddTransient(@interface, type);
                 }
             }
         }
@@ -172,7 +178,7 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.AddTransient(@interface, type);
+                    services.TryAddTransient(@interface, type);
                 }
             }
         }
@@ -196,7 +202,7 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.AddTransient(@interface, type);
+                    services.TryAddTransient(@interface, type);
                 }
             }
         }
@@ -220,7 +226,7 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.AddTransient(@interface, type);
+                    services.TryAddTransient(@interface, type);
                 }
             }
         }

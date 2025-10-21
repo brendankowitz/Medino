@@ -55,7 +55,9 @@ public class Mediator : IMediator
         var handlerType = typeof(IRequestHandler<,>).MakeGenericType(requestType, responseType);
 
         // Resolve handler using reflection (cannot use generic method since types are runtime)
-        var getServiceMethod = typeof(IMediatorServiceProvider).GetMethod(nameof(IMediatorServiceProvider.GetService))!
+        var getServiceMethod = typeof(IMediatorServiceProvider)
+            .GetMethods()
+            .First(m => m.Name == nameof(IMediatorServiceProvider.GetService) && m.IsGenericMethodDefinition)
             .MakeGenericMethod(handlerType);
         var handler = getServiceMethod.Invoke(_serviceProvider, null);
 
@@ -71,13 +73,22 @@ public class Mediator : IMediator
         }
 
         // Get context behaviors (for request transformation)
+        // Look for both concrete type and object-based behaviors
         var contextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var getContextBehaviorsMethod = typeof(IMediatorServiceProvider).GetMethod(nameof(IMediatorServiceProvider.GetServices))!
-            .MakeGenericMethod(contextBehaviorType);
-        var contextBehaviors = ((IEnumerable<object>)getContextBehaviorsMethod.Invoke(_serviceProvider, null)!).ToList();
+        var contextBehaviors = _serviceProvider.GetServices(contextBehaviorType).ToList();
+
+        var objectContextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
+        var objectContextBehaviors = _serviceProvider.GetServices(objectContextBehaviorType).ToList();
+        contextBehaviors.AddRange(objectContextBehaviors);
 
         // Get regular pipeline behaviors
-        var behaviors = _serviceProvider.GetServices<IPipelineBehavior<object, TResponse>>().ToList();
+        // Look for both concrete type and object-based behaviors
+        var normalBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
+        var behaviors = _serviceProvider.GetServices(normalBehaviorType).ToList();
+
+        var objectBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
+        var objectBehaviors = _serviceProvider.GetServices(objectBehaviorType).ToList();
+        behaviors.AddRange(objectBehaviors);
 
         if (contextBehaviors.Any() || behaviors.Any())
         {
@@ -125,11 +136,33 @@ public class Mediator : IMediator
             {
                 var behavior = behaviors[i];
                 var next = pipeline;
-                pipeline = () =>
+
+                var behaviorType = behavior.GetType();
+                var handleAsyncMethod = behaviorType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
+
+                if (handleAsyncMethod != null)
                 {
-                    var currentRequest = contextRequestProperty.GetValue(context);
-                    return behavior.HandleAsync(currentRequest!, next, cancellationToken);
-                };
+                    pipeline = () =>
+                    {
+                        try
+                        {
+                            var currentRequest = contextRequestProperty.GetValue(context);
+                            var result = handleAsyncMethod.Invoke(behavior, [currentRequest!, next, cancellationToken]);
+                            if (result is Task<TResponse> typedTask)
+                            {
+                                return typedTask;
+                            }
+
+                            throw new InvalidOperationException("Behavior did not return expected task type");
+                        }
+                        catch (TargetInvocationException tie) when (tie.InnerException != null)
+                        {
+                            // Unwrap reflection exceptions
+                            ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+                            throw; // unreachable
+                        }
+                    };
+                }
             }
 
             // Add context behaviors (execute first, can transform request)
@@ -188,7 +221,7 @@ public class Mediator : IMediator
         {
             try
             {
-                var result = handleMethod.Invoke(handler, new object[] { request, cancellationToken });
+                var result = handleMethod.Invoke(handler, [request, cancellationToken]);
                 if (result is Task<TResponse> typedTask)
                 {
                     return await typedTask.ConfigureAwait(false);
@@ -258,7 +291,9 @@ public class Mediator : IMediator
 
         // Find all matching exception handlers
         var handlerInterfaceType = typeof(IRequestExceptionHandler<,,>).MakeGenericType(requestType, typeof(TResponse), exceptionType);
-        var getServicesMethod = typeof(IMediatorServiceProvider).GetMethod(nameof(IMediatorServiceProvider.GetServices))!
+        var getServicesMethod = typeof(IMediatorServiceProvider)
+            .GetMethods()
+            .First(m => m.Name == nameof(IMediatorServiceProvider.GetServices) && m.IsGenericMethodDefinition)
             .MakeGenericMethod(handlerInterfaceType);
         var handlers = ((IEnumerable<object>)getServicesMethod.Invoke(_serviceProvider, null)!).ToList();
 
@@ -293,7 +328,9 @@ public class Mediator : IMediator
 
         // Find all matching exception actions
         var actionInterfaceType = typeof(IRequestExceptionAction<,>).MakeGenericType(requestType, exceptionType);
-        var getServicesMethod = typeof(IMediatorServiceProvider).GetMethod(nameof(IMediatorServiceProvider.GetServices))!
+        var getServicesMethod = typeof(IMediatorServiceProvider)
+            .GetMethods()
+            .First(m => m.Name == nameof(IMediatorServiceProvider.GetServices) && m.IsGenericMethodDefinition)
             .MakeGenericMethod(actionInterfaceType);
         var actions = ((IEnumerable<object>)getServicesMethod.Invoke(_serviceProvider, null)!).ToList();
 
