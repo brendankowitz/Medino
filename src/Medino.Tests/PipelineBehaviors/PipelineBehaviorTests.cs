@@ -72,4 +72,41 @@ public class PipelineBehaviorTests : IDisposable
         Assert.NotNull(response);
         Assert.True(response.Success);
     }
+
+    [Fact]
+    public async Task PipelineBehavior_WithConcreteRequestType_ShouldExecuteMultipleBehaviors()
+    {
+        // Arrange - Create a new service provider with concrete request type behaviors
+        var services = new ServiceCollection();
+
+        // Register multiple behaviors for the specific TestRequest type (not object)
+        services.AddSingleton<TestRequestLoggingBehavior>();
+        services.AddSingleton<TestRequestTimingBehavior>();
+        services.AddSingleton<IPipelineBehavior<TestRequest, TestResponse>>(sp => sp.GetRequiredService<TestRequestLoggingBehavior>());
+        services.AddSingleton<IPipelineBehavior<TestRequest, TestResponse>>(sp => sp.GetRequiredService<TestRequestTimingBehavior>());
+
+        services.AddMedino(typeof(PipelineBehaviorTests).Assembly);
+        var serviceProvider = services.BuildServiceProvider();
+        var mediator = serviceProvider.GetRequiredService<IMediator>();
+
+        var loggingBehavior = serviceProvider.GetRequiredService<TestRequestLoggingBehavior>();
+        var timingBehavior = serviceProvider.GetRequiredService<TestRequestTimingBehavior>();
+
+        // Act
+        var response = await mediator.SendAsync(new TestRequest());
+
+        // Assert
+        Assert.NotNull(response);
+
+        // Both behaviors should have executed
+        Assert.Equal(2, loggingBehavior.Logs.Count);
+        Assert.Contains("Before", loggingBehavior.Logs[0]);
+        Assert.Contains("After", loggingBehavior.Logs[1]);
+
+        Assert.True(timingBehavior.StartTime > DateTime.MinValue);
+        Assert.True(timingBehavior.EndTime > timingBehavior.StartTime);
+
+        // Cleanup
+        (serviceProvider as IDisposable)?.Dispose();
+    }
 }
