@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         // Register command handlers
         var commandHandlerType = typeof(ICommandHandler<>);
         var requestHandlerType = typeof(IRequestHandler<,>);
+        var registeredHandlers = new HashSet<(Type interfaceType, Type implementationType)>();
 
         foreach (var assembly in assemblies)
         {
@@ -92,13 +93,13 @@ public static class ServiceCollectionExtensions
                     {
                         var genericTypeDef = @interface.GetGenericTypeDefinition();
 
-                        if (genericTypeDef == commandHandlerType)
+                        if (genericTypeDef == commandHandlerType || genericTypeDef == requestHandlerType)
                         {
-                            services.TryAddTransient(@interface, type);
-                        }
-                        else if (genericTypeDef == requestHandlerType)
-                        {
-                            services.TryAddTransient(@interface, type);
+                            // Track registrations to avoid duplicates
+                            if (registeredHandlers.Add((@interface, type)))
+                            {
+                                services.AddTransient(@interface, type);
+                            }
                         }
                     }
                 }
@@ -139,6 +140,7 @@ public static class ServiceCollectionExtensions
     private static void RegisterPipelineBehaviors(IServiceCollection services, Assembly[] assemblies)
     {
         var pipelineBehaviorType = typeof(IPipelineBehavior<,>);
+        var registeredBehaviors = new HashSet<(Type interfaceType, Type implementationType)>();
 
         foreach (var assembly in assemblies)
         {
@@ -154,7 +156,11 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.TryAddTransient(@interface, type);
+                    // Track registrations to avoid duplicates
+                    if (registeredBehaviors.Add((@interface, type)))
+                    {
+                        services.AddTransient(@interface, type);
+                    }
                 }
             }
         }
@@ -163,6 +169,7 @@ public static class ServiceCollectionExtensions
     private static void RegisterContextPipelineBehaviors(IServiceCollection services, Assembly[] assemblies)
     {
         var contextPipelineBehaviorType = typeof(IContextPipelineBehavior<,>);
+        var registeredBehaviors = new HashSet<(Type interfaceType, Type implementationType)>();
 
         foreach (var assembly in assemblies)
         {
@@ -178,7 +185,11 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.TryAddTransient(@interface, type);
+                    // Track registrations to avoid duplicates
+                    if (registeredBehaviors.Add((@interface, type)))
+                    {
+                        services.AddTransient(@interface, type);
+                    }
                 }
             }
         }
@@ -187,6 +198,7 @@ public static class ServiceCollectionExtensions
     private static void RegisterExceptionHandlers(IServiceCollection services, Assembly[] assemblies)
     {
         var exceptionHandlerType = typeof(IRequestExceptionHandler<,,>);
+        var registeredHandlers = new HashSet<(Type interfaceType, Type implementationType)>();
 
         foreach (var assembly in assemblies)
         {
@@ -202,7 +214,11 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.TryAddTransient(@interface, type);
+                    // Track registrations to avoid duplicates
+                    if (registeredHandlers.Add((@interface, type)))
+                    {
+                        services.AddTransient(@interface, type);
+                    }
                 }
             }
         }
@@ -211,6 +227,7 @@ public static class ServiceCollectionExtensions
     private static void RegisterExceptionActions(IServiceCollection services, Assembly[] assemblies)
     {
         var exceptionActionType = typeof(IRequestExceptionAction<,>);
+        var registeredActions = new HashSet<(Type interfaceType, Type implementationType)>();
 
         foreach (var assembly in assemblies)
         {
@@ -226,7 +243,11 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
-                    services.TryAddTransient(@interface, type);
+                    // Track registrations to avoid duplicates
+                    if (registeredActions.Add((@interface, type)))
+                    {
+                        services.AddTransient(@interface, type);
+                    }
                 }
             }
         }

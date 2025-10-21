@@ -57,9 +57,9 @@ public class Mediator : IMediator
         // Resolve handler using reflection (cannot use generic method since types are runtime)
         var getServiceMethod = typeof(IMediatorServiceProvider)
             .GetMethods()
-            .First(m => m.Name == nameof(IMediatorServiceProvider.GetService) && m.IsGenericMethodDefinition)
-            .MakeGenericMethod(handlerType);
-        var handler = getServiceMethod.Invoke(_serviceProvider, null);
+            .Single(m => m.Name == nameof(IMediatorServiceProvider.GetService) && m.IsGenericMethodDefinition);
+        var boundMethod = getServiceMethod.MakeGenericMethod(handlerType);
+        var handler = boundMethod.Invoke(_serviceProvider, null);
 
         if (handler == null)
         {
@@ -113,7 +113,7 @@ public class Mediator : IMediator
                 {
                     // Use the potentially transformed request from context
                     var currentRequest = contextRequestProperty.GetValue(context);
-                    var result = handleMethod.Invoke(handler, new object[] { currentRequest!, cancellationToken });
+                    var result = handleMethod.Invoke(handler, [currentRequest!, cancellationToken]);
                     if (result is Task<TResponse> typedTask)
                     {
                         return await typedTask.ConfigureAwait(false);
@@ -140,29 +140,31 @@ public class Mediator : IMediator
                 var behaviorType = behavior.GetType();
                 var handleAsyncMethod = behaviorType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
 
-                if (handleAsyncMethod != null)
+                if (handleAsyncMethod == null)
                 {
-                    pipeline = () =>
-                    {
-                        try
-                        {
-                            var currentRequest = contextRequestProperty.GetValue(context);
-                            var result = handleAsyncMethod.Invoke(behavior, [currentRequest!, next, cancellationToken]);
-                            if (result is Task<TResponse> typedTask)
-                            {
-                                return typedTask;
-                            }
-
-                            throw new InvalidOperationException("Behavior did not return expected task type");
-                        }
-                        catch (TargetInvocationException tie) when (tie.InnerException != null)
-                        {
-                            // Unwrap reflection exceptions
-                            ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
-                            throw; // unreachable
-                        }
-                    };
+                    throw new InvalidOperationException($"HandleAsync method not found on pipeline behavior {behaviorType.Name}");
                 }
+
+                pipeline = () =>
+                {
+                    try
+                    {
+                        var currentRequest = contextRequestProperty.GetValue(context);
+                        var result = handleAsyncMethod.Invoke(behavior, [currentRequest!, next, cancellationToken]);
+                        if (result is Task<TResponse> typedTask)
+                        {
+                            return typedTask;
+                        }
+
+                        throw new InvalidOperationException("Behavior did not return expected task type");
+                    }
+                    catch (TargetInvocationException tie) when (tie.InnerException != null)
+                    {
+                        // Unwrap reflection exceptions
+                        ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+                        throw; // unreachable
+                    }
+                };
             }
 
             // Add context behaviors (execute first, can transform request)
@@ -175,27 +177,29 @@ public class Mediator : IMediator
                 var behaviorType = contextBehavior.GetType();
                 var handleAsyncMethod = behaviorType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
 
-                if (handleAsyncMethod != null)
+                if (handleAsyncMethod == null)
                 {
-                    pipeline = () =>
-                    {
-                        try
-                        {
-                            var result = handleAsyncMethod.Invoke(contextBehavior, new object[] { context, next, cancellationToken });
-                            if (result is Task<TResponse> typedTask)
-                            {
-                                return typedTask;
-                            }
-                            throw new InvalidOperationException("Context behavior did not return expected task type");
-                        }
-                        catch (TargetInvocationException tie) when (tie.InnerException != null)
-                        {
-                            // Unwrap reflection exceptions
-                            ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
-                            throw; // unreachable
-                        }
-                    };
+                    throw new InvalidOperationException($"HandleAsync method not found on context pipeline behavior {behaviorType.Name}");
                 }
+
+                pipeline = () =>
+                {
+                    try
+                    {
+                        var result = handleAsyncMethod.Invoke(contextBehavior, [context, next, cancellationToken]);
+                        if (result is Task<TResponse> typedTask)
+                        {
+                            return typedTask;
+                        }
+                        throw new InvalidOperationException("Context behavior did not return expected task type");
+                    }
+                    catch (TargetInvocationException tie) when (tie.InnerException != null)
+                    {
+                        // Unwrap reflection exceptions
+                        ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+                        throw; // unreachable
+                    }
+                };
             }
 
             try
@@ -293,9 +297,9 @@ public class Mediator : IMediator
         var handlerInterfaceType = typeof(IRequestExceptionHandler<,,>).MakeGenericType(requestType, typeof(TResponse), exceptionType);
         var getServicesMethod = typeof(IMediatorServiceProvider)
             .GetMethods()
-            .First(m => m.Name == nameof(IMediatorServiceProvider.GetServices) && m.IsGenericMethodDefinition)
-            .MakeGenericMethod(handlerInterfaceType);
-        var handlers = ((IEnumerable<object>)getServicesMethod.Invoke(_serviceProvider, null)!).ToList();
+            .Single(m => m.Name == nameof(IMediatorServiceProvider.GetServices) && m.IsGenericMethodDefinition);
+        var boundMethod = getServicesMethod.MakeGenericMethod(handlerInterfaceType);
+        var handlers = ((IEnumerable<object>)boundMethod.Invoke(_serviceProvider, null)!).ToList();
 
         if (handlers.Any())
         {
@@ -330,9 +334,9 @@ public class Mediator : IMediator
         var actionInterfaceType = typeof(IRequestExceptionAction<,>).MakeGenericType(requestType, exceptionType);
         var getServicesMethod = typeof(IMediatorServiceProvider)
             .GetMethods()
-            .First(m => m.Name == nameof(IMediatorServiceProvider.GetServices) && m.IsGenericMethodDefinition)
-            .MakeGenericMethod(actionInterfaceType);
-        var actions = ((IEnumerable<object>)getServicesMethod.Invoke(_serviceProvider, null)!).ToList();
+            .Single(m => m.Name == nameof(IMediatorServiceProvider.GetServices) && m.IsGenericMethodDefinition);
+        var boundMethod = getServicesMethod.MakeGenericMethod(actionInterfaceType);
+        var actions = ((IEnumerable<object>)boundMethod.Invoke(_serviceProvider, null)!).ToList();
 
         if (actions.Any())
         {

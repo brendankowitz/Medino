@@ -16,7 +16,7 @@ public interface IMediatorServiceProvider
     /// Gets a service of the specified type
     /// </summary>
     /// <returns>The service instance, or null if not found</returns>
-    object GetService(Type serviceType);
+    object? GetService(Type serviceType);
 
     /// <summary>
     /// Gets all services of the specified type

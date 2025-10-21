@@ -19,9 +19,9 @@ internal class MediatorServiceProviderAdapter : IMediatorServiceProvider
         return _serviceProvider.GetService(typeof(T)) as T;
     }
 
-    public object GetService(Type serviceType)
+    public object? GetService(Type serviceType)
     {
-        return _serviceProvider.GetService(serviceType) ?? throw new InvalidOperationException($"Service of type {serviceType} not found");
+        return _serviceProvider.GetService(serviceType);
     }
 
     public IEnumerable<T> GetServices<T>() where T : class
@@ -31,6 +31,6 @@ internal class MediatorServiceProviderAdapter : IMediatorServiceProvider
 
     public IEnumerable<object> GetServices(Type serviceType)
     {
-        return _serviceProvider.GetServices(serviceType);
+        return _serviceProvider.GetServices(serviceType).Where(s => s != null)!;
     }
 }
