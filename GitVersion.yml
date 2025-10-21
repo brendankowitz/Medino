@@ -1,9 +1,2 @@
+workflow: TrunkBased/preview1
 assembly-versioning-scheme: MajorMinorPatch
-mode: ContinuousDeployment
-branches:
-  main:
-    increment: Patch
-    regex: ^main$
-  master:
-    increment: Patch
-    regex: ^master$
