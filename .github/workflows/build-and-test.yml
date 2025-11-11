@@ -6,7 +6,7 @@ on:
       dotnet-version:
         description: '.NET SDK version to use'
         required: false
-        default: '9.0.x'
+        default: '10.0.x'
         type: string
 
 jobs:
