@@ -105,7 +105,7 @@ public class MediatorTests : IDisposable
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await _mediator.SendAsync(command));
-        Assert.Contains("No handler registered", ex.Message);
+        Assert.StartsWith("No service of type", ex.Message);
     }
 
     [Fact]

@@ -33,9 +33,6 @@ public static class ServiceCollectionExtensions
             throw new ArgumentException("No assemblies found to scan. Supply at least one assembly.", nameof(assemblies));
         }
 
-        // Register mediator service provider adapter
-        services.TryAddTransient<IMediatorServiceProvider>(sp => new MediatorServiceProviderAdapter(sp));
-
         // Register mediator
         services.TryAddTransient<IMediator, Mediator>();
 
