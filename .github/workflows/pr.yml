@@ -11,5 +11,3 @@ jobs:
   validate:
     name: Build and Test PR
     uses: ./.github/workflows/build-and-test.yml
-    with:
-      dotnet-version: '9.0.x'

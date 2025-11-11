@@ -2,12 +2,6 @@ name: Build and Test
 
 on:
   workflow_call:
-    inputs:
-      dotnet-version:
-        description: '.NET SDK version to use'
-        required: false
-        default: '10.0.x'
-        type: string
 
 jobs:
   build-and-test:
@@ -22,7 +16,11 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{ inputs.dotnet-version }}
+        dotnet-version: |
+          8.0.x
+          9.0.x
+          10.0.x
+        dotnet-quality: 'ga'
 
     - name: Restore dependencies
       run: dotnet restore src/Medino.sln
