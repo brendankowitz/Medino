@@ -8,30 +8,25 @@ namespace Medino;
 /// </summary>
 public class Mediator : IMediator
 {
-    private readonly IMediatorServiceProvider _serviceProvider;
+    private readonly IServiceProvider _serviceProvider;
 
     /// <summary>
     /// Initializes a new instance of Mediator
     /// </summary>
     /// <param name="serviceProvider">Service provider for resolving services</param>
-    public Mediator(IMediatorServiceProvider serviceProvider)
+    public Mediator(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
     /// <inheritdoc />
-    public async Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+    public Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
         where TCommand : ICommand
     {
         if (command == null) throw new ArgumentNullException(nameof(command));
 
-        var handler = _serviceProvider.GetService<ICommandHandler<TCommand>>();
-        if (handler == null)
-        {
-            throw new InvalidOperationException($"No handler registered for command type {typeof(TCommand).Name}");
-        }
-
-        await handler.HandleAsync(command, cancellationToken).ConfigureAwait(false);
+        var handler = GetRequiredService<ICommandHandler<TCommand>>();
+        return handler.HandleAsync(command, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -53,18 +48,7 @@ public class Mediator : IMediator
         }
 
         var handlerType = typeof(IRequestHandler<,>).MakeGenericType(requestType, responseType);
-
-        // Resolve handler using reflection (cannot use generic method since types are runtime)
-        var getServiceMethod = typeof(IMediatorServiceProvider)
-            .GetMethods()
-            .Single(m => m.Name == nameof(IMediatorServiceProvider.GetService) && m.IsGenericMethodDefinition);
-        var boundMethod = getServiceMethod.MakeGenericMethod(handlerType);
-        var handler = boundMethod.Invoke(_serviceProvider, null);
-
-        if (handler == null)
-        {
-            throw new InvalidOperationException($"No handler registered for request type {requestType.Name}");
-        }
+        var handler = GetRequiredService(handlerType);
 
         var handleMethod = handlerType.GetMethod(nameof(IRequestHandler<IRequest<TResponse>, TResponse>.HandleAsync));
         if (handleMethod == null)
@@ -75,22 +59,22 @@ public class Mediator : IMediator
         // Get context behaviors (for request transformation)
         // Look for both concrete type and object-based behaviors
         var contextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var contextBehaviors = _serviceProvider.GetServices(contextBehaviorType).ToList();
+        var contextBehaviors = GetServices(contextBehaviorType).ToList();
 
         var objectContextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
-        var objectContextBehaviors = _serviceProvider.GetServices(objectContextBehaviorType).ToList();
+        var objectContextBehaviors = GetServices(objectContextBehaviorType).ToList();
         contextBehaviors.AddRange(objectContextBehaviors);
 
         // Get regular pipeline behaviors
         // Look for both concrete type and object-based behaviors
         var normalBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var behaviors = _serviceProvider.GetServices(normalBehaviorType).ToList();
+        var behaviors = GetServices(normalBehaviorType).ToList();
 
         var objectBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
-        var objectBehaviors = _serviceProvider.GetServices(objectBehaviorType).ToList();
+        var objectBehaviors = GetServices(objectBehaviorType).ToList();
         behaviors.AddRange(objectBehaviors);
 
-        if (contextBehaviors.Any() || behaviors.Any())
+        if (contextBehaviors.Count > 0 || behaviors.Count > 0)
         {
             // Create context for request transformation with correct type
             var contextType = typeof(PipelineContext<>).MakeGenericType(requestType);
@@ -272,9 +256,9 @@ public class Mediator : IMediator
     {
         if (notification == null) throw new ArgumentNullException(nameof(notification));
 
-        var handlers = _serviceProvider.GetServices<INotificationHandler<TNotification>>().ToList();
+        var handlers = GetServices<INotificationHandler<TNotification>>().ToList();
 
-        if (!handlers.Any())
+        if (handlers.Count == 0)
         {
             // No handlers is OK for notifications (fire and forget)
             return;
@@ -295,13 +279,9 @@ public class Mediator : IMediator
 
         // Find all matching exception handlers
         var handlerInterfaceType = typeof(IRequestExceptionHandler<,,>).MakeGenericType(requestType, typeof(TResponse), exceptionType);
-        var getServicesMethod = typeof(IMediatorServiceProvider)
-            .GetMethods()
-            .Single(m => m.Name == nameof(IMediatorServiceProvider.GetServices) && m.IsGenericMethodDefinition);
-        var boundMethod = getServicesMethod.MakeGenericMethod(handlerInterfaceType);
-        var handlers = ((IEnumerable<object>)boundMethod.Invoke(_serviceProvider, null)!).ToList();
+        var handlers = GetServices(handlerInterfaceType).ToList();
 
-        if (handlers.Any())
+        if (handlers.Count > 0)
         {
             foreach (var handler in handlers)
             {
@@ -332,13 +312,9 @@ public class Mediator : IMediator
 
         // Find all matching exception actions
         var actionInterfaceType = typeof(IRequestExceptionAction<,>).MakeGenericType(requestType, exceptionType);
-        var getServicesMethod = typeof(IMediatorServiceProvider)
-            .GetMethods()
-            .Single(m => m.Name == nameof(IMediatorServiceProvider.GetServices) && m.IsGenericMethodDefinition);
-        var boundMethod = getServicesMethod.MakeGenericMethod(actionInterfaceType);
-        var actions = ((IEnumerable<object>)boundMethod.Invoke(_serviceProvider, null)!).ToList();
+        var actions = GetServices(actionInterfaceType).ToList();
 
-        if (actions.Any())
+        if (actions.Count > 0)
         {
             foreach (var action in actions)
             {
@@ -369,5 +345,31 @@ public class Mediator : IMediator
 
         // Return original exception if no translation occurred
         return exception;
+    }
+
+    private object GetRequiredService(Type type)
+    {
+        object? service = _serviceProvider.GetService(type);
+        if (service == null)
+        {
+            throw new InvalidOperationException($"No service of type {type.FullName} was registered.");
+        }
+
+        return service;
+    }
+
+    private T GetRequiredService<T>()
+    {
+        return (T)GetRequiredService(typeof(T));
+    }
+
+    private IEnumerable<object> GetServices(Type type)
+    {
+        return (IEnumerable<object>)GetRequiredService(typeof(IEnumerable<>).MakeGenericType(type));
+    }
+
+    private IEnumerable<T> GetServices<T>()
+    {
+        return GetRequiredService<IEnumerable<T>>();
     }
 }

@@ -6,6 +6,9 @@
 *.user
 *.sln.docstates
 
+# User-specific folder
+.vs/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
