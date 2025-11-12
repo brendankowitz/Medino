@@ -11,20 +11,20 @@ cd Medino
 dotnet tool restore
 
 # Restore dependencies
-dotnet restore src/Medino.sln
+dotnet restore src/Medino.slnx
 ```
 
 ## Building
 
 ```bash
 # Build all projects
-dotnet build src/Medino.sln
+dotnet build src/Medino.slnx
 
 # Build in Release mode
-dotnet build src/Medino.sln --configuration Release
+dotnet build src/Medino.slnx --configuration Release
 
 # Clean build
-dotnet clean src/Medino.sln
+dotnet clean src/Medino.slnx
 ```
 
 ## Testing

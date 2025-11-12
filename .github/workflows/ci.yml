@@ -9,8 +9,6 @@ jobs:
   build:
     name: CI Build and Test
     uses: ./.github/workflows/build-and-test.yml
-    with:
-      dotnet-version: '9.0.x'
 
   publish:
     name: Publish Packages
@@ -27,7 +25,11 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: |
+          8.0.x
+          9.0.x
+          10.0.x
+        dotnet-quality: 'ga'
 
     - name: Pack NuGet packages
       run: |
