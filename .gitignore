@@ -175,7 +175,6 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
-/src/Medino.Package
 
 # Test Results and Coverage
 TestResults/

@@ -139,7 +139,6 @@ src/
 │   ├── PipelineBehaviors/           # Behavior tests
 │   ├── ExceptionHandling/           # Exception handler tests
 │   └── Registration/                # DI registration tests
-└── Medino.Package/                  # Legacy packaging project
 ```
 
 ## Testing Framework
