@@ -175,7 +175,7 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
-/src/NanoBus.Package
+/src/Medino.Package
 
 # Test Results and Coverage
 TestResults/

@@ -139,7 +139,7 @@ src/
 │   ├── PipelineBehaviors/           # Behavior tests
 │   ├── ExceptionHandling/           # Exception handler tests
 │   └── Registration/                # DI registration tests
-└── NanoBus.Package/                 # Legacy packaging project
+└── Medino.Package/                  # Legacy packaging project
 ```
 
 ## Testing Framework
