@@ -11,14 +11,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Building
 ```bash
 # Build the entire solution
-dotnet build src/Medino.sln
+dotnet build src/Medino.slnx
 
 # Build specific project
 dotnet build src/Medino/Medino.csproj
 dotnet build src/Medino.Extensions.DependencyInjection/Medino.Extensions.DependencyInjection.csproj
 
 # Clean build
-dotnet clean src/Medino.sln
+dotnet clean src/Medino.slnx
 ```
 
 ### Testing

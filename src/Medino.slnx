@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Medino\Medino.csproj" />
+  <Project Path="Medino.Extensions.DependencyInjection\Medino.Extensions.DependencyInjection.csproj" />
+  <Project Path="Medino.Tests\Medino.Tests.csproj" />
+</Solution>

@@ -23,13 +23,13 @@ jobs:
         dotnet-quality: 'ga'
 
     - name: Restore dependencies
-      run: dotnet restore src/Medino.sln
+      run: dotnet restore src/Medino.slnx
 
     - name: Build
-      run: dotnet build src/Medino.sln --configuration Release --no-restore
+      run: dotnet build src/Medino.slnx --configuration Release --no-restore
 
     - name: Run tests
-      run: dotnet test src/Medino.sln --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" --results-directory ./TestResults
+      run: dotnet test src/Medino.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
     - name: Upload test results
       if: always()

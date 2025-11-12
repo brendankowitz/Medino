@@ -7,7 +7,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/src/Medino.sln",
+        "${workspaceFolder}/src/Medino.slnx",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -23,7 +23,7 @@
       "type": "process",
       "args": [
         "clean",
-        "${workspaceFolder}/src/Medino.sln"
+        "${workspaceFolder}/src/Medino.slnx"
       ],
       "problemMatcher": "$msCompile"
     },
