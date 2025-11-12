@@ -7,7 +7,7 @@ namespace Medino.Tests.Registration;
 public class RegistrationTests
 {
     [Fact]
-    public void AddNanoBus_WithAssembly_ShouldRegisterMediator()
+    public void AddMedino_WithAssembly_ShouldRegisterMediator()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -22,7 +22,7 @@ public class RegistrationTests
     }
 
     [Fact]
-    public void AddNanoBus_WithConfiguration_ShouldRegisterMediator()
+    public void AddMedino_WithConfiguration_ShouldRegisterMediator()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -37,7 +37,7 @@ public class RegistrationTests
     }
 
     [Fact]
-    public void AddNanoBus_ShouldRegisterCommandHandlers()
+    public void AddMedino_ShouldRegisterCommandHandlers()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -53,7 +53,7 @@ public class RegistrationTests
     }
 
     [Fact]
-    public void AddNanoBus_ShouldRegisterRequestHandlers()
+    public void AddMedino_ShouldRegisterRequestHandlers()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -69,7 +69,7 @@ public class RegistrationTests
     }
 
     [Fact]
-    public void AddNanoBus_ShouldRegisterNotificationHandlers()
+    public void AddMedino_ShouldRegisterNotificationHandlers()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -85,7 +85,7 @@ public class RegistrationTests
     }
 
     [Fact]
-    public void AddNanoBus_WithEmptyAssemblyArray_ShouldThrowException()
+    public void AddMedino_WithEmptyAssemblyArray_ShouldThrowException()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -95,7 +95,7 @@ public class RegistrationTests
     }
 
     [Fact]
-    public void AddNanoBus_WithConfiguration_WithNoAssemblies_ShouldThrowException()
+    public void AddMedino_WithConfiguration_WithNoAssemblies_ShouldThrowException()
     {
         // Arrange
         var services = new ServiceCollection();

@@ -1,5 +1,8 @@
 # Medino
 
+[![NuGet](https://img.shields.io/nuget/v/Medino.svg)](https://www.nuget.org/packages/Medino/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A lightweight, high-performance in-process mediator for .NET 8+ with support for commands, queries, events, pipeline behaviors, and exception handling.
 
 ## Why Medino?
