@@ -1,0 +1,83 @@
+[
+  {
+    "id": "b582762a-d769-4a58-8966-2e1a83ce7cce",
+    "category": "architecture",
+    "statement": "Medino is a lightweight .NET 8+ mediator library implementing CQRS patterns with Commands (fire-and-forget), Queries (request/response), and Notifications (pub/sub). It provides a migration path from MediatR with explicit async naming conventions.",
+    "source": "README.md and CLAUDE.md",
+    "createdAt": "2026-01-05T19:47:13.575Z",
+    "lastVerified": "2026-01-05T19:47:13.575Z",
+    "confidence": 0.991095442914527
+  },
+  {
+    "id": "77a2c229-9186-439b-970a-a9351822514d",
+    "category": "architecture",
+    "statement": "The project has three main components: 1) Core mediator library (src/Medino/) with interfaces and implementation, 2) DI extensions (src/Medino.Extensions.DependencyInjection/) for Microsoft DI integration, 3) Test suite (src/Medino.Tests/) using xUnit framework.",
+    "source": "Project structure analysis",
+    "createdAt": "2026-01-05T19:47:18.266Z",
+    "lastVerified": "2026-01-05T19:47:18.266Z",
+    "confidence": 0.9910958573435978
+  },
+  {
+    "id": "57e73ebe-b204-419a-9d0d-33bed9e735b5",
+    "category": "patterns",
+    "statement": "Pipeline execution order: 1) Context Behaviors execute first (can transform request), 2) Regular Pipeline Behaviors execute second (observe final request), 3) Handler executes last, 4) Exception Handlers catch and provide fallback responses, 5) Exception Actions execute for side effects.",
+    "source": "CLAUDE.md pipeline documentation",
+    "createdAt": "2026-01-05T19:47:23.231Z",
+    "lastVerified": "2026-01-05T19:47:23.231Z",
+    "confidence": 0.9910962959795437
+  },
+  {
+    "id": "2918d6ed-e807-47ce-a182-8df3217b27c8",
+    "category": "convention",
+    "statement": "All async methods use *Async suffix (HandleAsync, SendAsync, PublishAsync). Use records for commands/queries/notifications. Handler classes named <RequestType>Handler. Target frameworks: net8.0 and net9.0.",
+    "source": "CLAUDE.md development guidelines",
+    "createdAt": "2026-01-05T19:47:27.749Z",
+    "lastVerified": "2026-01-05T19:47:27.749Z",
+    "confidence": 0.9910966951251713
+  },
+  {
+    "id": "eb0cbcc4-8aa0-45a2-b02b-bdd2cefd5fc5",
+    "category": "requirement",
+    "statement": "The mediator feature addresses application coupling issues, CQRS implementation challenges, code organization problems, and MediatR migration pain points by providing a lightweight, decoupled communication mechanism with consistent cross-cutting behavior support.",
+    "source": "Feature analysis in .clautana/features/mediator/README.md",
+    "createdAt": "2026-01-05T19:49:23.417Z",
+    "lastVerified": "2026-01-05T19:49:23.417Z",
+    "confidence": 0.9911069139440655
+  },
+  {
+    "id": "2607cd4a-a775-46c8-bb6a-29ba64f17734",
+    "category": "architecture",
+    "statement": "Medino uses parallel notification publishing via Task.WhenAll() for maximum throughput. Investigation concludes this approach should be maintained as it matches industry standards (MediatR), provides better performance for I/O-bound handlers, and maintains API simplicity.",
+    "source": "parallel-sequential-publishing-patterns investigation",
+    "createdAt": "2026-01-05T19:53:48.045Z",
+    "lastVerified": "2026-01-05T19:53:48.045Z",
+    "confidence": 0.9911302931971154
+  },
+  {
+    "id": "b0f0d942-63d3-44b9-bf96-27327d0fc26f",
+    "category": "best-practice",
+    "statement": "When evaluating execution patterns for mediator notifications, parallel execution via Task.WhenAll() is generally preferred over sequential execution due to better performance with I/O-bound handlers, industry standard compliance, and simpler implementation. Sequential execution should only be considered when specific ordering requirements or resource constraints necessitate it. (Context: Completing investigation into parallel vs sequential publishing patterns for the Medino mediator library)",
+    "source": "agent-learned",
+    "createdAt": "2026-01-05T19:53:53.011Z",
+    "lastVerified": "2026-01-05T19:53:53.011Z",
+    "confidence": 0.9911307319366506
+  },
+  {
+    "id": "3cb425fa-114f-42f8-a984-0439556affb7",
+    "category": "architecture",
+    "statement": "Medino fluent publishing API implementation follows dependency order: Interface design → Strategy implementation → Extension methods → Publisher integration → Testing → Performance validation",
+    "source": "parallel-sequential-publishing-patterns investigation breakdown",
+    "createdAt": "2026-01-06T23:39:35.846Z",
+    "lastVerified": "2026-01-06T23:39:35.846Z",
+    "confidence": 1
+  },
+  {
+    "id": "805cc87c-db4e-46a8-8b61-3a74b293bfcb",
+    "category": "requirement",
+    "statement": "Fluent publishing API must maintain 100% backward compatibility with existing PublishAsync calls while adding new fluent chaining capabilities (WithParallelExecution, WithSequentialExecution, WithContinueOnError)",
+    "source": "parallel-sequential-publishing-patterns investigation",
+    "createdAt": "2026-01-06T23:39:43.398Z",
+    "lastVerified": "2026-01-06T23:39:43.398Z",
+    "confidence": 1
+  }
+]
