@@ -59,19 +59,27 @@ public class Mediator : IMediator
         // Get context behaviors (for request transformation)
         // Look for both concrete type and object-based behaviors
         var contextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var contextBehaviors = GetServices(contextBehaviorType).ToList();
+        var contextBehaviors = GetServices(contextBehaviorType)
+            .Select(behavior => (Behavior: behavior, ServiceType: contextBehaviorType))
+            .ToList();
 
         var objectContextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
-        var objectContextBehaviors = GetServices(objectContextBehaviorType).ToList();
+        var objectContextBehaviors = GetServices(objectContextBehaviorType)
+            .Select(behavior => (Behavior: behavior, ServiceType: objectContextBehaviorType))
+            .ToList();
         contextBehaviors.AddRange(objectContextBehaviors);
 
         // Get regular pipeline behaviors
         // Look for both concrete type and object-based behaviors
         var normalBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var behaviors = GetServices(normalBehaviorType).ToList();
+        var behaviors = GetServices(normalBehaviorType)
+            .Select(behavior => (Behavior: behavior, ServiceType: normalBehaviorType))
+            .ToList();
 
         var objectBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
-        var objectBehaviors = GetServices(objectBehaviorType).ToList();
+        var objectBehaviors = GetServices(objectBehaviorType)
+            .Select(behavior => (Behavior: behavior, ServiceType: objectBehaviorType))
+            .ToList();
         behaviors.AddRange(objectBehaviors);
 
         if (contextBehaviors.Count > 0 || behaviors.Count > 0)
@@ -118,15 +126,14 @@ public class Mediator : IMediator
             // Add regular pipeline behaviors (execute after context behaviors)
             for (var i = behaviors.Count - 1; i >= 0; i--)
             {
-                var behavior = behaviors[i];
+                var (behavior, behaviorServiceType) = behaviors[i];
                 var next = pipeline;
 
-                var behaviorType = behavior.GetType();
-                var handleAsyncMethod = behaviorType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
+                var handleAsyncMethod = behaviorServiceType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
 
                 if (handleAsyncMethod == null)
                 {
-                    throw new InvalidOperationException($"HandleAsync method not found on pipeline behavior {behaviorType.Name}");
+                    throw new InvalidOperationException($"HandleAsync method not found on pipeline behavior {behaviorServiceType.Name}");
                 }
 
                 pipeline = () =>
@@ -154,16 +161,15 @@ public class Mediator : IMediator
             // Add context behaviors (execute first, can transform request)
             for (var i = contextBehaviors.Count - 1; i >= 0; i--)
             {
-                var contextBehavior = contextBehaviors[i];
+                var (contextBehavior, contextBehaviorServiceType) = contextBehaviors[i];
                 var next = pipeline;
 
                 // Use reflection to call HandleAsync on the context behavior
-                var behaviorType = contextBehavior.GetType();
-                var handleAsyncMethod = behaviorType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
+                var handleAsyncMethod = contextBehaviorServiceType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
 
                 if (handleAsyncMethod == null)
                 {
-                    throw new InvalidOperationException($"HandleAsync method not found on context pipeline behavior {behaviorType.Name}");
+                    throw new InvalidOperationException($"HandleAsync method not found on context pipeline behavior {contextBehaviorServiceType.Name}");
                 }
 
                 pipeline = () =>

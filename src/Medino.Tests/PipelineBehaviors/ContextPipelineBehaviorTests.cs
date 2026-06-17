@@ -262,6 +262,30 @@ public class ContextPipelineBehaviorTests : IDisposable
         // Assert
         Assert.IsAssignableFrom<IReadOnlyDictionary<string, object>>(metadata);
     }
+
+    [Fact]
+    public async Task ContextPipelineBehavior_WithMultipleClosedHandleAsyncOverloads_ShouldInvokeMatchingOverload()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton<OverloadedContextPipelineBehavior>();
+        services.AddSingleton<IContextPipelineBehavior<OverloadedFirstContextRequest, string>>(sp => sp.GetRequiredService<OverloadedContextPipelineBehavior>());
+        services.AddSingleton<IContextPipelineBehavior<OverloadedSecondContextRequest, string>>(sp => sp.GetRequiredService<OverloadedContextPipelineBehavior>());
+        services.AddMedino(typeof(ContextPipelineBehaviorTests).Assembly);
+        var serviceProvider = services.BuildServiceProvider();
+        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var behavior = serviceProvider.GetRequiredService<OverloadedContextPipelineBehavior>();
+
+        // Act
+        var response = await mediator.SendAsync(new OverloadedSecondContextRequest("second"));
+
+        // Assert
+        Assert.Equal("Handled second", response);
+        Assert.Equal("second", behavior.InvokedOverload);
+
+        // Cleanup
+        (serviceProvider as IDisposable)?.Dispose();
+    }
 }
 
 // Test request and handlers for tenant enrichment
@@ -409,6 +433,45 @@ public class ObservingBehavior : IPipelineBehavior<object, string>
         {
             ObservedValue = combined.Value;
         }
+        return await next();
+    }
+}
+
+public record OverloadedFirstContextRequest(string Value) : IRequest<string>;
+
+public record OverloadedSecondContextRequest(string Value) : IRequest<string>;
+
+public class OverloadedFirstContextRequestHandler : IRequestHandler<OverloadedFirstContextRequest, string>
+{
+    public Task<string> HandleAsync(OverloadedFirstContextRequest request, CancellationToken cancellationToken)
+    {
+        return Task.FromResult($"Handled {request.Value}");
+    }
+}
+
+public class OverloadedSecondContextRequestHandler : IRequestHandler<OverloadedSecondContextRequest, string>
+{
+    public Task<string> HandleAsync(OverloadedSecondContextRequest request, CancellationToken cancellationToken)
+    {
+        return Task.FromResult($"Handled {request.Value}");
+    }
+}
+
+public class OverloadedContextPipelineBehavior :
+    IContextPipelineBehavior<OverloadedFirstContextRequest, string>,
+    IContextPipelineBehavior<OverloadedSecondContextRequest, string>
+{
+    public string? InvokedOverload { get; private set; }
+
+    public async Task<string> HandleAsync(PipelineContext<OverloadedFirstContextRequest> context, RequestHandlerDelegate<string> next, CancellationToken cancellationToken)
+    {
+        InvokedOverload = "first";
+        return await next();
+    }
+
+    public async Task<string> HandleAsync(PipelineContext<OverloadedSecondContextRequest> context, RequestHandlerDelegate<string> next, CancellationToken cancellationToken)
+    {
+        InvokedOverload = "second";
         return await next();
     }
 }

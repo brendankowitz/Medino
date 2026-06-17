@@ -109,4 +109,67 @@ public class PipelineBehaviorTests : IDisposable
         // Cleanup
         (serviceProvider as IDisposable)?.Dispose();
     }
+
+    [Fact]
+    public async Task PipelineBehavior_WithMultipleClosedHandleAsyncOverloads_ShouldInvokeMatchingOverload()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton<OverloadedPipelineBehavior>();
+        services.AddSingleton<IPipelineBehavior<OverloadedFirstRequest, string>>(sp => sp.GetRequiredService<OverloadedPipelineBehavior>());
+        services.AddSingleton<IPipelineBehavior<OverloadedSecondRequest, string>>(sp => sp.GetRequiredService<OverloadedPipelineBehavior>());
+        services.AddMedino(typeof(PipelineBehaviorTests).Assembly);
+        var serviceProvider = services.BuildServiceProvider();
+        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var behavior = serviceProvider.GetRequiredService<OverloadedPipelineBehavior>();
+
+        // Act
+        var response = await mediator.SendAsync(new OverloadedSecondRequest("second"));
+
+        // Assert
+        Assert.Equal("Handled second", response);
+        Assert.Equal("second", behavior.InvokedOverload);
+
+        // Cleanup
+        (serviceProvider as IDisposable)?.Dispose();
+    }
+}
+
+public record OverloadedFirstRequest(string Value) : IRequest<string>;
+
+public record OverloadedSecondRequest(string Value) : IRequest<string>;
+
+public class OverloadedFirstRequestHandler : IRequestHandler<OverloadedFirstRequest, string>
+{
+    public Task<string> HandleAsync(OverloadedFirstRequest request, CancellationToken cancellationToken)
+    {
+        return Task.FromResult($"Handled {request.Value}");
+    }
+}
+
+public class OverloadedSecondRequestHandler : IRequestHandler<OverloadedSecondRequest, string>
+{
+    public Task<string> HandleAsync(OverloadedSecondRequest request, CancellationToken cancellationToken)
+    {
+        return Task.FromResult($"Handled {request.Value}");
+    }
+}
+
+public class OverloadedPipelineBehavior :
+    IPipelineBehavior<OverloadedFirstRequest, string>,
+    IPipelineBehavior<OverloadedSecondRequest, string>
+{
+    public string? InvokedOverload { get; private set; }
+
+    public async Task<string> HandleAsync(OverloadedFirstRequest request, RequestHandlerDelegate<string> next, CancellationToken cancellationToken)
+    {
+        InvokedOverload = "first";
+        return await next();
+    }
+
+    public async Task<string> HandleAsync(OverloadedSecondRequest request, RequestHandlerDelegate<string> next, CancellationToken cancellationToken)
+    {
+        InvokedOverload = "second";
+        return await next();
+    }
 }
