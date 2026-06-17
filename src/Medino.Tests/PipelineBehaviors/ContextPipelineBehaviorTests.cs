@@ -276,12 +276,14 @@ public class ContextPipelineBehaviorTests : IDisposable
         var mediator = serviceProvider.GetRequiredService<IMediator>();
         var behavior = serviceProvider.GetRequiredService<OverloadedContextPipelineBehavior>();
 
-        // Act
-        var response = await mediator.SendAsync(new OverloadedSecondContextRequest("second"));
-
-        // Assert
-        Assert.Equal("Handled second", response);
+        // Act & Assert - each request type must resolve to its own HandleAsync overload
+        var secondResponse = await mediator.SendAsync(new OverloadedSecondContextRequest("second"));
+        Assert.Equal("Handled second", secondResponse);
         Assert.Equal("second", behavior.InvokedOverload);
+
+        var firstResponse = await mediator.SendAsync(new OverloadedFirstContextRequest("first"));
+        Assert.Equal("Handled first", firstResponse);
+        Assert.Equal("first", behavior.InvokedOverload);
 
         // Cleanup
         (serviceProvider as IDisposable)?.Dispose();

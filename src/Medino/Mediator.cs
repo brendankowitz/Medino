@@ -57,7 +57,9 @@ public class Mediator : IMediator
         }
 
         // Get context behaviors (for request transformation)
-        // Look for both concrete type and object-based behaviors
+        // Look for both concrete type and object-based behaviors.
+        // Each behavior is paired with the closed interface ServiceType it was resolved from so that
+        // HandleAsync can later be resolved unambiguously even when one class implements several behaviors.
         var contextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
         var contextBehaviors = GetServices(contextBehaviorType)
             .Select(behavior => (Behavior: behavior, ServiceType: contextBehaviorType))
@@ -129,11 +131,15 @@ public class Mediator : IMediator
                 var (behavior, behaviorServiceType) = behaviors[i];
                 var next = pipeline;
 
+                // Resolve HandleAsync on the closed interface type rather than the concrete type.
+                // A behavior may implement several closed IPipelineBehavior<,> interfaces (one HandleAsync
+                // overload each); looking the method up by name on the concrete type would throw
+                // AmbiguousMatchException, so we use the unambiguous interface method instead.
                 var handleAsyncMethod = behaviorServiceType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
 
                 if (handleAsyncMethod == null)
                 {
-                    throw new InvalidOperationException($"HandleAsync method not found on pipeline behavior {behaviorServiceType.Name}");
+                    throw new InvalidOperationException($"HandleAsync method not found on pipeline behavior {behavior.GetType().Name} ({behaviorServiceType.Name})");
                 }
 
                 pipeline = () =>
@@ -164,12 +170,14 @@ public class Mediator : IMediator
                 var (contextBehavior, contextBehaviorServiceType) = contextBehaviors[i];
                 var next = pipeline;
 
-                // Use reflection to call HandleAsync on the context behavior
+                // Resolve HandleAsync on the closed interface type (see note above) so that a behavior
+                // implementing multiple closed IContextPipelineBehavior<,> interfaces resolves the
+                // correct overload instead of throwing AmbiguousMatchException.
                 var handleAsyncMethod = contextBehaviorServiceType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
 
                 if (handleAsyncMethod == null)
                 {
-                    throw new InvalidOperationException($"HandleAsync method not found on context pipeline behavior {contextBehaviorServiceType.Name}");
+                    throw new InvalidOperationException($"HandleAsync method not found on context pipeline behavior {contextBehavior.GetType().Name} ({contextBehaviorServiceType.Name})");
                 }
 
                 pipeline = () =>
