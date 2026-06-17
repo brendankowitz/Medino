@@ -263,10 +263,18 @@ public class ContextPipelineBehaviorTests : IDisposable
         Assert.IsAssignableFrom<IReadOnlyDictionary<string, object>>(metadata);
     }
 
+    // Regression test for AmbiguousMatchException on context behaviors - the same defect as the
+    // regular-pipeline test, on the IContextPipelineBehavior<,> invocation path.
+    //
+    // When one class implements multiple closed IContextPipelineBehavior<,> interfaces it declares
+    // multiple HandleAsync overloads. Resolving HandleAsync by name on the concrete type matches more
+    // than one and throws AmbiguousMatchException. The fix resolves the method on the closed interface
+    // the behavior was registered as, which exposes exactly one HandleAsync, selecting the right overload.
     [Fact]
     public async Task ContextPipelineBehavior_WithMultipleClosedHandleAsyncOverloads_ShouldInvokeMatchingOverload()
     {
-        // Arrange
+        // Arrange - register one shared instance behind both closed IContextPipelineBehavior<,>
+        // interfaces so a single InvokedOverload field can record which overload actually ran.
         var services = new ServiceCollection();
         services.AddSingleton<OverloadedContextPipelineBehavior>();
         services.AddSingleton<IContextPipelineBehavior<OverloadedFirstContextRequest, string>>(sp => sp.GetRequiredService<OverloadedContextPipelineBehavior>());
@@ -276,7 +284,8 @@ public class ContextPipelineBehaviorTests : IDisposable
         var mediator = serviceProvider.GetRequiredService<IMediator>();
         var behavior = serviceProvider.GetRequiredService<OverloadedContextPipelineBehavior>();
 
-        // Act & Assert - each request type must resolve to its own HandleAsync overload
+        // Act & Assert - send each request type and confirm its matching HandleAsync overload ran.
+        // Both directions are exercised so a fix that hard-coded a single overload would still fail.
         var secondResponse = await mediator.SendAsync(new OverloadedSecondContextRequest("second"));
         Assert.Equal("Handled second", secondResponse);
         Assert.Equal("second", behavior.InvokedOverload);
@@ -459,10 +468,14 @@ public class OverloadedSecondContextRequestHandler : IRequestHandler<OverloadedS
     }
 }
 
+// Implements two closed IContextPipelineBehavior<,> interfaces, so the concrete type declares two
+// HandleAsync overloads - the shape that triggered AmbiguousMatchException when the mediator resolved
+// HandleAsync by name on the concrete type.
 public class OverloadedContextPipelineBehavior :
     IContextPipelineBehavior<OverloadedFirstContextRequest, string>,
     IContextPipelineBehavior<OverloadedSecondContextRequest, string>
 {
+    // Records which overload the mediator actually invoked, so the test can assert correct dispatch.
     public string? InvokedOverload { get; private set; }
 
     public async Task<string> HandleAsync(PipelineContext<OverloadedFirstContextRequest> context, RequestHandlerDelegate<string> next, CancellationToken cancellationToken)

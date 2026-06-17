@@ -110,10 +110,25 @@ public class PipelineBehaviorTests : IDisposable
         (serviceProvider as IDisposable)?.Dispose();
     }
 
+    // Regression test for AmbiguousMatchException when a single class implements more than one
+    // closed IPipelineBehavior<,> interface.
+    //
+    // The mediator invokes a behavior's HandleAsync via reflection. It previously resolved the method
+    // with concreteType.GetMethod("HandleAsync"), which inspects the implementation type. When that
+    // type declares two HandleAsync overloads (one per closed interface it implements), GetMethod finds
+    // more than one match and throws AmbiguousMatchException before the handler ever runs.
+    //
+    // The fix resolves HandleAsync on the *closed interface* the behavior was registered as
+    // (IPipelineBehavior<OverloadedSecondRequest, string>), which exposes exactly one HandleAsync,
+    // so the correct overload is selected for each request type.
+    //
+    // The OverloadedPipelineBehavior below reproduces the failing shape (one class, two closed
+    // interfaces, two overloads), registered as a shared singleton behind both interfaces.
     [Fact]
     public async Task PipelineBehavior_WithMultipleClosedHandleAsyncOverloads_ShouldInvokeMatchingOverload()
     {
-        // Arrange
+        // Arrange - register one shared instance behind both closed IPipelineBehavior<,> interfaces.
+        // The shared instance lets a single InvokedOverload field record which overload actually ran.
         var services = new ServiceCollection();
         services.AddSingleton<OverloadedPipelineBehavior>();
         services.AddSingleton<IPipelineBehavior<OverloadedFirstRequest, string>>(sp => sp.GetRequiredService<OverloadedPipelineBehavior>());
@@ -123,7 +138,8 @@ public class PipelineBehaviorTests : IDisposable
         var mediator = serviceProvider.GetRequiredService<IMediator>();
         var behavior = serviceProvider.GetRequiredService<OverloadedPipelineBehavior>();
 
-        // Act & Assert - each request type must resolve to its own HandleAsync overload
+        // Act & Assert - send each request type and confirm its matching HandleAsync overload ran.
+        // Both directions are exercised so a fix that hard-coded a single overload would still fail.
         var secondResponse = await mediator.SendAsync(new OverloadedSecondRequest("second"));
         Assert.Equal("Handled second", secondResponse);
         Assert.Equal("second", behavior.InvokedOverload);
@@ -157,10 +173,14 @@ public class OverloadedSecondRequestHandler : IRequestHandler<OverloadedSecondRe
     }
 }
 
+// Implements two closed IPipelineBehavior<,> interfaces, so the concrete type declares two
+// HandleAsync overloads. This is the exact shape that triggered AmbiguousMatchException when the
+// mediator resolved HandleAsync by name on the concrete type.
 public class OverloadedPipelineBehavior :
     IPipelineBehavior<OverloadedFirstRequest, string>,
     IPipelineBehavior<OverloadedSecondRequest, string>
 {
+    // Records which overload the mediator actually invoked, so the test can assert correct dispatch.
     public string? InvokedOverload { get; private set; }
 
     public async Task<string> HandleAsync(OverloadedFirstRequest request, RequestHandlerDelegate<string> next, CancellationToken cancellationToken)
