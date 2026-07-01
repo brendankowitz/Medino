@@ -56,38 +56,36 @@ public class Mediator : IMediator
             throw new InvalidOperationException($"HandleAsync method not found on handler {handlerType.Name}");
         }
 
-        // Get context behaviors (for request transformation)
-        // Look for both concrete type and object-based behaviors. Each behavior is paired with the
-        // MethodInfo of the specific closed-generic interface it was resolved from (rather than its
-        // concrete type), since a single class may implement IContextPipelineBehavior<,> for more
-        // than one request type - resolving HandleAsync from behavior.GetType() would then be
-        // ambiguous (AmbiguousMatchException).
-        var contextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var contextBehaviorHandleAsyncMethod = contextBehaviorType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
-        var contextBehaviors = GetServices(contextBehaviorType)
-            .Select(b => (Instance: b, HandleAsync: contextBehaviorHandleAsyncMethod))
-            .ToList();
+        // Resolve the pipeline behaviors registered for this request. Each behavior instance is paired
+        // with the HandleAsync MethodInfo of the specific closed-generic interface it was resolved from,
+        // rather than its concrete type: a single class may implement the behavior interface for more
+        // than one request type, in which case resolving HandleAsync from behavior.GetType() is ambiguous
+        // (AmbiguousMatchException). Resolving from the interface also lets us skip reflection entirely
+        // when no behaviors are registered.
+        List<(object Instance, MethodInfo HandleAsync)> ResolveBehaviors(Type closedBehaviorInterface)
+        {
+            var instances = GetServices(closedBehaviorInterface).ToList();
+            if (instances.Count == 0)
+            {
+                return new List<(object, MethodInfo)>();
+            }
 
-        var objectContextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
-        var objectContextBehaviorHandleAsyncMethod = objectContextBehaviorType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
-        var objectContextBehaviors = GetServices(objectContextBehaviorType)
-            .Select(b => (Instance: b, HandleAsync: objectContextBehaviorHandleAsyncMethod));
-        contextBehaviors.AddRange(objectContextBehaviors);
+            var handleAsync = closedBehaviorInterface.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync))
+                ?? throw new InvalidOperationException($"HandleAsync method not found on {closedBehaviorInterface.Name}");
+            return instances.Select(instance => (instance, handleAsync)).ToList();
+        }
 
-        // Get regular pipeline behaviors
-        // Look for both concrete type and object-based behaviors. See comment above for why the
-        // HandleAsync MethodInfo is resolved from the interface rather than the concrete type.
-        var normalBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var normalBehaviorHandleAsyncMethod = normalBehaviorType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
-        var behaviors = GetServices(normalBehaviorType)
-            .Select(b => (Instance: b, HandleAsync: normalBehaviorHandleAsyncMethod))
-            .ToList();
+        // Context behaviors (for request transformation) execute first. They must be strongly typed to
+        // the concrete request type: IContextPipelineBehavior<object, TResponse> is not supported because
+        // PipelineContext<T> is invariant, so a PipelineContext<TRequest> can never be passed where a
+        // PipelineContext<object> is expected (it would throw ArgumentException at invocation time).
+        var contextBehaviors = ResolveBehaviors(typeof(IContextPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse)));
 
-        var objectBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
-        var objectBehaviorHandleAsyncMethod = objectBehaviorType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
-        var objectBehaviors = GetServices(objectBehaviorType)
-            .Select(b => (Instance: b, HandleAsync: objectBehaviorHandleAsyncMethod));
-        behaviors.AddRange(objectBehaviors);
+        // Regular pipeline behaviors execute after context behaviors. Both request-typed and object-based
+        // (IPipelineBehavior<object, TResponse>) behaviors are supported - the latter's HandleAsync takes
+        // an `object request`, so any request instance can be passed to it.
+        var behaviors = ResolveBehaviors(typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse)));
+        behaviors.AddRange(ResolveBehaviors(typeof(IPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse))));
 
         if (contextBehaviors.Count > 0 || behaviors.Count > 0)
         {
@@ -136,11 +134,6 @@ public class Mediator : IMediator
                 var (behavior, handleAsyncMethod) = behaviors[i];
                 var next = pipeline;
 
-                if (handleAsyncMethod == null)
-                {
-                    throw new InvalidOperationException($"HandleAsync method not found on pipeline behavior {behavior.GetType().Name}");
-                }
-
                 pipeline = () =>
                 {
                     try
@@ -168,11 +161,6 @@ public class Mediator : IMediator
             {
                 var (contextBehavior, handleAsyncMethod) = contextBehaviors[i];
                 var next = pipeline;
-
-                if (handleAsyncMethod == null)
-                {
-                    throw new InvalidOperationException($"HandleAsync method not found on context pipeline behavior {contextBehavior.GetType().Name}");
-                }
 
                 pipeline = () =>
                 {

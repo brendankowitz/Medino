@@ -57,6 +57,57 @@ public class MultiInterfacePipelineBehaviorTests : IDisposable
     }
 }
 
+/// <summary>
+/// Regression tests for the context-behavior path of the same fix: a single class implementing
+/// IContextPipelineBehavior&lt;,&gt; for more than one closed-generic request type. Like the regular
+/// behavior case, resolving HandleAsync from the concrete Type previously threw AmbiguousMatchException.
+/// </summary>
+public class MultiInterfaceContextPipelineBehaviorTests : IDisposable
+{
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IMediator _mediator;
+    private readonly MultiRequestTypeContextBehavior _behavior;
+
+    public MultiInterfaceContextPipelineBehaviorTests()
+    {
+        var services = new ServiceCollection();
+
+        _behavior = new MultiRequestTypeContextBehavior();
+        services.AddSingleton(_behavior);
+        services.AddSingleton<IContextPipelineBehavior<TestRequest, TestResponse>>(sp => sp.GetRequiredService<MultiRequestTypeContextBehavior>());
+        services.AddSingleton<IContextPipelineBehavior<AnotherTestRequest, TestResponse>>(sp => sp.GetRequiredService<MultiRequestTypeContextBehavior>());
+
+        services.AddMedino(typeof(MultiInterfaceContextPipelineBehaviorTests).Assembly);
+        _serviceProvider = services.BuildServiceProvider();
+        _mediator = _serviceProvider.GetRequiredService<IMediator>();
+    }
+
+    public void Dispose()
+    {
+        (_serviceProvider as IDisposable)?.Dispose();
+    }
+
+    [Fact]
+    public async Task GivenContextBehaviorImplementingMultipleClosedGenericInterfaces_WhenSendingFirstRequestType_ThenHandleAsyncIsInvokedWithoutAmbiguity()
+    {
+        var response = await _mediator.SendAsync(new TestRequest());
+
+        Assert.NotNull(response);
+        Assert.Equal(1, _behavior.TestRequestHandleCount);
+        Assert.Equal(0, _behavior.AnotherTestRequestHandleCount);
+    }
+
+    [Fact]
+    public async Task GivenContextBehaviorImplementingMultipleClosedGenericInterfaces_WhenSendingSecondRequestType_ThenHandleAsyncIsInvokedWithoutAmbiguity()
+    {
+        var response = await _mediator.SendAsync(new AnotherTestRequest());
+
+        Assert.NotNull(response);
+        Assert.Equal(0, _behavior.TestRequestHandleCount);
+        Assert.Equal(1, _behavior.AnotherTestRequestHandleCount);
+    }
+}
+
 public record AnotherTestRequest : IRequest<TestResponse>;
 
 public class AnotherTestRequestHandler : IRequestHandler<AnotherTestRequest, TestResponse>
@@ -85,6 +136,29 @@ public class MultiRequestTypeBehavior : IPipelineBehavior<TestRequest, TestRespo
     }
 
     public Task<TestResponse> HandleAsync(AnotherTestRequest request, RequestHandlerDelegate<TestResponse> next, CancellationToken cancellationToken)
+    {
+        AnotherTestRequestHandleCount++;
+        return next();
+    }
+}
+
+/// <summary>
+/// A single context behavior implementing IContextPipelineBehavior&lt;,&gt; for two different request
+/// types sharing the same response type - the context-behavior analog of MultiRequestTypeBehavior.
+/// </summary>
+public class MultiRequestTypeContextBehavior : IContextPipelineBehavior<TestRequest, TestResponse>, IContextPipelineBehavior<AnotherTestRequest, TestResponse>
+{
+    public int TestRequestHandleCount { get; private set; }
+
+    public int AnotherTestRequestHandleCount { get; private set; }
+
+    public Task<TestResponse> HandleAsync(PipelineContext<TestRequest> context, RequestHandlerDelegate<TestResponse> next, CancellationToken cancellationToken)
+    {
+        TestRequestHandleCount++;
+        return next();
+    }
+
+    public Task<TestResponse> HandleAsync(PipelineContext<AnotherTestRequest> context, RequestHandlerDelegate<TestResponse> next, CancellationToken cancellationToken)
     {
         AnotherTestRequestHandleCount++;
         return next();
