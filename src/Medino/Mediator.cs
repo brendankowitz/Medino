@@ -57,21 +57,36 @@ public class Mediator : IMediator
         }
 
         // Get context behaviors (for request transformation)
-        // Look for both concrete type and object-based behaviors
+        // Look for both concrete type and object-based behaviors. Each behavior is paired with the
+        // MethodInfo of the specific closed-generic interface it was resolved from (rather than its
+        // concrete type), since a single class may implement IContextPipelineBehavior<,> for more
+        // than one request type - resolving HandleAsync from behavior.GetType() would then be
+        // ambiguous (AmbiguousMatchException).
         var contextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var contextBehaviors = GetServices(contextBehaviorType).ToList();
+        var contextBehaviorHandleAsyncMethod = contextBehaviorType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
+        var contextBehaviors = GetServices(contextBehaviorType)
+            .Select(b => (Instance: b, HandleAsync: contextBehaviorHandleAsyncMethod))
+            .ToList();
 
         var objectContextBehaviorType = typeof(IContextPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
-        var objectContextBehaviors = GetServices(objectContextBehaviorType).ToList();
+        var objectContextBehaviorHandleAsyncMethod = objectContextBehaviorType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
+        var objectContextBehaviors = GetServices(objectContextBehaviorType)
+            .Select(b => (Instance: b, HandleAsync: objectContextBehaviorHandleAsyncMethod));
         contextBehaviors.AddRange(objectContextBehaviors);
 
         // Get regular pipeline behaviors
-        // Look for both concrete type and object-based behaviors
+        // Look for both concrete type and object-based behaviors. See comment above for why the
+        // HandleAsync MethodInfo is resolved from the interface rather than the concrete type.
         var normalBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var behaviors = GetServices(normalBehaviorType).ToList();
+        var normalBehaviorHandleAsyncMethod = normalBehaviorType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
+        var behaviors = GetServices(normalBehaviorType)
+            .Select(b => (Instance: b, HandleAsync: normalBehaviorHandleAsyncMethod))
+            .ToList();
 
         var objectBehaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(typeof(object), typeof(TResponse));
-        var objectBehaviors = GetServices(objectBehaviorType).ToList();
+        var objectBehaviorHandleAsyncMethod = objectBehaviorType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
+        var objectBehaviors = GetServices(objectBehaviorType)
+            .Select(b => (Instance: b, HandleAsync: objectBehaviorHandleAsyncMethod));
         behaviors.AddRange(objectBehaviors);
 
         if (contextBehaviors.Count > 0 || behaviors.Count > 0)
@@ -118,15 +133,12 @@ public class Mediator : IMediator
             // Add regular pipeline behaviors (execute after context behaviors)
             for (var i = behaviors.Count - 1; i >= 0; i--)
             {
-                var behavior = behaviors[i];
+                var (behavior, handleAsyncMethod) = behaviors[i];
                 var next = pipeline;
-
-                var behaviorType = behavior.GetType();
-                var handleAsyncMethod = behaviorType.GetMethod(nameof(IPipelineBehavior<object, TResponse>.HandleAsync));
 
                 if (handleAsyncMethod == null)
                 {
-                    throw new InvalidOperationException($"HandleAsync method not found on pipeline behavior {behaviorType.Name}");
+                    throw new InvalidOperationException($"HandleAsync method not found on pipeline behavior {behavior.GetType().Name}");
                 }
 
                 pipeline = () =>
@@ -154,16 +166,12 @@ public class Mediator : IMediator
             // Add context behaviors (execute first, can transform request)
             for (var i = contextBehaviors.Count - 1; i >= 0; i--)
             {
-                var contextBehavior = contextBehaviors[i];
+                var (contextBehavior, handleAsyncMethod) = contextBehaviors[i];
                 var next = pipeline;
-
-                // Use reflection to call HandleAsync on the context behavior
-                var behaviorType = contextBehavior.GetType();
-                var handleAsyncMethod = behaviorType.GetMethod(nameof(IContextPipelineBehavior<object, TResponse>.HandleAsync));
 
                 if (handleAsyncMethod == null)
                 {
-                    throw new InvalidOperationException($"HandleAsync method not found on context pipeline behavior {behaviorType.Name}");
+                    throw new InvalidOperationException($"HandleAsync method not found on context pipeline behavior {contextBehavior.GetType().Name}");
                 }
 
                 pipeline = () =>
