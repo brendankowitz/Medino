@@ -335,7 +335,7 @@ public class CorrelationBehavior : RequestEnrichmentBehavior<MyRequest, MyRespon
 }
 ```
 
-**Note:** Context behaviors must be strongly typed to specific request/response types. For generic cross-cutting concerns that don't need request transformation, use regular `IPipelineBehavior<object, TResponse>` instead.
+**Note:** Context behaviors must be strongly typed to specific request/response types. `IContextPipelineBehavior<object, TResponse>` is not supported because `PipelineContext<T>` is invariant, so a `PipelineContext<TRequest>` can never be passed to a behavior expecting `PipelineContext<object>` — `AddMedino` throws at registration if it finds one. For generic cross-cutting concerns that don't need request transformation, use regular `IPipelineBehavior<object, TResponse>` instead (its `HandleAsync` takes `object request`, so it applies to any request returning `TResponse`).
 
 #### Full Control with IContextPipelineBehavior
 

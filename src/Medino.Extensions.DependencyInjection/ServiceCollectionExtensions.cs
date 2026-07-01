@@ -182,6 +182,18 @@ public static class ServiceCollectionExtensions
 
                 foreach (var @interface in interfaces)
                 {
+                    // IContextPipelineBehavior<object, TResponse> can never be invoked: PipelineContext<T>
+                    // is invariant, so the PipelineContext<TRequest> created at send time is not assignable
+                    // to the PipelineContext<object> parameter its HandleAsync expects. Silently registering
+                    // one would leave it wired up but never executed, so fail fast here instead.
+                    if (@interface.GetGenericArguments()[0] == typeof(object))
+                    {
+                        throw new InvalidOperationException(
+                            $"{type.Name} implements IContextPipelineBehavior<object, ...>, which can never be invoked " +
+                            "because PipelineContext<T> is invariant. Strongly-type the context behavior to a concrete " +
+                            "request type, or use IPipelineBehavior<object, TResponse> for request-type-agnostic behaviors.");
+                    }
+
                     // Track registrations to avoid duplicates
                     if (registeredBehaviors.Add((@interface, type)))
                     {

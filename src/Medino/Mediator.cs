@@ -60,8 +60,8 @@ public class Mediator : IMediator
         // with the HandleAsync MethodInfo of the specific closed-generic interface it was resolved from,
         // rather than its concrete type: a single class may implement the behavior interface for more
         // than one request type, in which case resolving HandleAsync from behavior.GetType() is ambiguous
-        // (AmbiguousMatchException). Resolving from the interface also lets us skip reflection entirely
-        // when no behaviors are registered.
+        // (AmbiguousMatchException). Resolving the method once from the interface (guarded by the count
+        // check) also avoids the per-instance HandleAsync lookup when no behaviors are registered.
         List<(object Instance, MethodInfo HandleAsync)> ResolveBehaviors(Type closedBehaviorInterface)
         {
             var instances = GetServices(closedBehaviorInterface).ToList();
@@ -78,7 +78,8 @@ public class Mediator : IMediator
         // Context behaviors (for request transformation) execute first. They must be strongly typed to
         // the concrete request type: IContextPipelineBehavior<object, TResponse> is not supported because
         // PipelineContext<T> is invariant, so a PipelineContext<TRequest> can never be passed where a
-        // PipelineContext<object> is expected (it would throw ArgumentException at invocation time).
+        // PipelineContext<object> is expected. AddMedino rejects such registrations up front; only the
+        // exact-request-type interface is resolved here.
         var contextBehaviors = ResolveBehaviors(typeof(IContextPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse)));
 
         // Regular pipeline behaviors execute after context behaviors. Both request-typed and object-based
