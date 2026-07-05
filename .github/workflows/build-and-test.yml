@@ -9,12 +9,12 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0  # GitVersion needs full history
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: |
           8.0.x
@@ -33,14 +33,14 @@ jobs:
 
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-results
         path: '**/test-results.trx'
 
     - name: Upload coverage reports
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-reports
         path: TestResults/**/coverage.cobertura.xml

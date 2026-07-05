@@ -2,5 +2,34 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "groupName": "github actions",
+      "matchManagers": ["github-actions"]
+    },
+    {
+      "groupName": "test dependencies",
+      "matchPackageNames": [
+        "/^xunit/",
+        "/^Microsoft\\.NET\\.Test\\.Sdk$/",
+        "/^coverlet\\./",
+        "/^dotnet-reportgenerator-globaltool$/"
+      ]
+    },
+    {
+      "groupName": "microsoft extensions",
+      "matchPackageNames": [
+        "/^Microsoft\\.Extensions\\./"
+      ]
+    },
+    {
+      "groupName": "build tooling",
+      "matchPackageNames": [
+        "/^GitVersion/",
+        "/^DotNet\\.ReproducibleBuilds$/",
+        "/^Microsoft\\.SourceLink/"
+      ]
+    }
   ]
 }
