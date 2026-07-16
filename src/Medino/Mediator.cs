@@ -253,7 +253,11 @@ public class Mediator : IMediator
     {
         if (notification == null) throw new ArgumentNullException(nameof(notification));
 
-        var handlers = GetServices<INotificationHandler<TNotification>>().ToList();
+        // Dispatch on the runtime type so a notification published through a base or interface
+        // reference still reaches its concrete handlers, mirroring SendAsync's request.GetType().
+        var notificationType = notification.GetType();
+        var handlerInterfaceType = typeof(INotificationHandler<>).MakeGenericType(notificationType);
+        var handlers = GetServices(handlerInterfaceType).ToList();
 
         if (handlers.Count == 0)
         {
@@ -261,8 +265,71 @@ public class Mediator : IMediator
             return;
         }
 
-        var tasks = handlers.Select(handler => handler.HandleAsync(notification, cancellationToken));
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        var handleMethod = handlerInterfaceType.GetMethod(nameof(INotificationHandler<INotification>.HandleAsync))
+            ?? throw new InvalidOperationException($"HandleAsync method not found on {handlerInterfaceType.Name}");
+
+        // Start every handler before awaiting. Invoking eagerly - rather than lazily inside Task.WhenAll -
+        // guarantees a handler that throws synchronously cannot prevent later handlers from running, and
+        // lets us observe every failure instead of only the first one Task.WhenAll would surface.
+        var tasks = new List<Task>(handlers.Count);
+        List<Exception>? failures = null;
+
+        foreach (var handler in handlers)
+        {
+            try
+            {
+                if (handleMethod.Invoke(handler, [notification, cancellationToken]) is Task task)
+                {
+                    tasks.Add(task);
+                }
+                else
+                {
+                    (failures ??= new List<Exception>()).Add(new InvalidOperationException(
+                        $"Handler {handler.GetType().Name} returned null instead of a Task from HandleAsync."));
+                }
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException is not null)
+            {
+                (failures ??= new List<Exception>()).Add(ex.InnerException);
+            }
+        }
+
+        Exception? whenAllException = null;
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Task.WhenAll rethrows only the first exception; faulted tasks are drained below so every
+            // failure is observed. The captured exception is preserved to cover the cancellation-only
+            // case, where a canceled task is neither faulted nor represented in the drain loop.
+            whenAllException = ex;
+        }
+
+        foreach (var task in tasks)
+        {
+            if (task.IsFaulted && task.Exception is not null)
+            {
+                (failures ??= new List<Exception>()).AddRange(task.Exception.InnerExceptions);
+            }
+        }
+
+        if (failures is not null)
+        {
+            if (failures.Count == 1)
+            {
+                ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            }
+
+            throw new AggregateException(failures);
+        }
+
+        // No handler faulted, but a task may have been canceled - Task.WhenAll surfaced it; preserve that.
+        if (whenAllException is not null)
+        {
+            ExceptionDispatchInfo.Capture(whenAllException).Throw();
+        }
     }
 
     private async Task<RequestExceptionHandlerState<TResponse>> TryHandleException<TResponse>(
