@@ -1,0 +1,345 @@
+name: 🚀 Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_nuget:
+        description: 'Skip NuGet.org publish'
+        type: boolean
+        default: false
+      skip_tag:
+        description: 'Skip git tag and GitHub release creation (dry run - previews release notes only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+  id-token: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  # ===========================================================================
+  # Stage 1: Prepare - fetch packages from the latest successful CI run on main
+  # ===========================================================================
+  prepare-release:
+    name: 📦 Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_version: ${{ steps.version.outputs.release_version }}
+      commit_sha: ${{ steps.version.outputs.commit_sha }}
+      ci_run_id: ${{ steps.download.outputs.ci_run_id }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download packages from latest successful CI run
+        id: download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CI_RUN_ID=$(gh run list --workflow ci.yml --branch main --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId')
+
+          if [ -z "$CI_RUN_ID" ] || [ "$CI_RUN_ID" == "null" ]; then
+            echo "::error::No successful CI run found on main"
+            exit 1
+          fi
+
+          echo "Downloading artifacts from CI run $CI_RUN_ID"
+          gh run download "$CI_RUN_ID" --name nuget-packages --dir ./packages
+          echo "ci_run_id=$CI_RUN_ID" >> $GITHUB_OUTPUT
+          ls -lh ./packages
+
+      - name: Read version and commit SHA
+        id: version
+        run: |
+          RELEASE_VERSION=$(cat ./packages/version.txt 2>/dev/null | tr -d '[:space:]')
+          COMMIT_SHA=$(cat ./packages/commit-sha.txt 2>/dev/null | tr -d '[:space:]')
+
+          if [ -z "$RELEASE_VERSION" ]; then
+            echo "::error::Failed to read release version from the CI artifact"
+            exit 1
+          fi
+          if [ -z "$COMMIT_SHA" ]; then
+            echo "::error::Failed to read commit SHA from the CI artifact"
+            exit 1
+          fi
+          if [ -z "$(ls ./packages/*.nupkg 2>/dev/null)" ]; then
+            echo "::error::The CI artifact contains no .nupkg files"
+            exit 1
+          fi
+
+          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "Release version: $RELEASE_VERSION"
+          echo "Commit SHA: $COMMIT_SHA"
+
+      - name: Upload packages for later jobs
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-packages
+          path: ./packages/*.nupkg
+          retention-days: 1
+
+  # ===========================================================================
+  # Stage 2: Publish to NuGet.org
+  # ===========================================================================
+  publish-nuget:
+    name: 📦 Publish to NuGet.org
+    runs-on: ubuntu-latest
+    needs: prepare-release
+    if: ${{ !inputs.skip_nuget }}
+
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v7
+        with:
+          name: release-packages
+          path: ./packages
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'ga'
+
+      - name: Push packages to NuGet.org
+        run: |
+          dotnet nuget push ./packages/*.nupkg \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+  # ===========================================================================
+  # Stage 3: Tag the released commit
+  # ===========================================================================
+  create-git-tag:
+    name: 🏷️ Create Git Tag
+    runs-on: ubuntu-latest
+    needs: [ prepare-release, publish-nuget ]
+    if: |
+      !inputs.skip_tag &&
+      (needs.publish-nuget.result == 'success' || needs.publish-nuget.result == 'skipped')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Create and push tag
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
+          COMMIT_SHA: ${{ needs.prepare-release.outputs.commit_sha }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          TAG_NAME="release/${RELEASE_VERSION}"
+
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "::warning::Tag $TAG_NAME already exists, skipping"
+          else
+            git tag "$TAG_NAME" "$COMMIT_SHA"
+            git push origin "$TAG_NAME"
+            echo "✅ Created and pushed tag: $TAG_NAME"
+          fi
+
+  # ===========================================================================
+  # Stage 4: GitHub release with Claude-generated notes
+  # ===========================================================================
+  create-github-release:
+    name: 📝 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [ prepare-release, create-git-tag ]
+    if: |
+      always() &&
+      needs.prepare-release.result == 'success' &&
+      (needs.create-git-tag.result == 'success' || needs.create-git-tag.result == 'skipped')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Collect release context
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
+          TAG_SKIPPED: ${{ needs.create-git-tag.result == 'skipped' }}
+        run: |
+          CURRENT_TAG="release/${RELEASE_VERSION}"
+
+          if [ "$TAG_SKIPPED" == "true" ]; then
+            echo "⚠️ Tag skipped - generating notes against HEAD (dry run)"
+            CURRENT_REF="HEAD"
+            PREV_TAG=$(git tag -l 'release/*' --sort=-version:refname | head -1)
+          else
+            CURRENT_REF="$CURRENT_TAG"
+            PREV_TAG=$(git tag -l 'release/*' --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -1)
+          fi
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous release tag found - using full history"
+            RANGE="$CURRENT_REF"
+          else
+            echo "Comparing $PREV_TAG..$CURRENT_REF"
+            RANGE="$PREV_TAG..$CURRENT_REF"
+          fi
+
+          {
+            echo "# Release context for ${RELEASE_VERSION}"
+            echo
+            echo "Previous release: ${PREV_TAG:-none}"
+            echo
+            echo "## Commits"
+            git log $RANGE --pretty=format:"- %h | %an | %s"
+            echo
+          } > release-context.md
+
+          # Raw commit list doubles as the fallback release body
+          git log $RANGE --pretty=format:"- %h %s (%an)" > commits.txt
+
+          PR_NUMBERS=$(git log $RANGE --pretty=format:"%s %b" | grep -oE '#[0-9]+' | tr -d '#' | sort -u)
+
+          echo "## Pull Requests" >> release-context.md
+          echo >> release-context.md
+          for pr in $PR_NUMBERS; do
+            PR_LINE=$(gh pr view "$pr" --json number,title,labels,author \
+              --jq '"- PR #\(.number): [\(.labels | map(.name) | join(", "))] \(.title) by @\(.author.login)"' 2>/dev/null || echo "")
+            if [ -n "$PR_LINE" ]; then
+              PR_BODY=$(gh pr view "$pr" --json body --jq '.body // "" | .[0:500]' 2>/dev/null || echo "")
+              echo "$PR_LINE" >> release-context.md
+              echo "  Description: ${PR_BODY}" >> release-context.md
+            fi
+          done
+          echo >> release-context.md
+
+          echo "## Recently Closed Issues" >> release-context.md
+          echo >> release-context.md
+          if [ -n "$PREV_TAG" ]; then
+            PREV_DATE=$(git log -1 --format=%cs "$PREV_TAG" 2>/dev/null || echo "")
+            if [ -n "$PREV_DATE" ]; then
+              gh issue list --state closed --search "closed:>=$PREV_DATE" --limit 20 \
+                --json number,title,labels \
+                --jq '.[] | "- Issue #\(.number): [\(.labels | map(.name) | join(", "))] \(.title)"' >> release-context.md 2>/dev/null || true
+            fi
+          fi
+
+          echo "--- release-context.md ---"
+          cat release-context.md
+
+      - name: Generate release notes with Claude
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: '--allowed-tools "Read,Write"'
+          prompt: |
+            Read `release-context.md` in the repository root and write GitHub release
+            notes for Medino ${{ needs.prepare-release.outputs.release_version }} to
+            `release_notes.md`. Write only that file; change nothing else.
+
+            Medino is a lightweight in-process mediator library for .NET.
+
+            Requirements:
+            - Open with one or two sentences summarising what changed in this release.
+            - Group changes under the headings that apply: `## 🚀 Features`,
+              `## 🐛 Bug Fixes`, `## 🔧 Maintenance`, `## 📦 Dependencies`.
+              Omit any heading with no entries.
+            - Call out breaking changes first, under `## ⚠️ Breaking Changes`, stated
+              plainly with the migration step a consumer needs to take.
+            - Link PR and issue references as
+              [#123](${{ github.server_url }}/${{ github.repository }}/issues/123).
+            - Close with a `## Contributors` section crediting authors as @mentions.
+            - Base every statement on the supplied context. Do not invent changes,
+              features, or fixes that are not evidenced there.
+            - Plain, factual tone. No marketing language.
+
+      - name: Verify release notes
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
+        run: |
+          if [ ! -s release_notes.md ]; then
+            echo "::warning::Release note generation failed - falling back to the commit list"
+            {
+              echo "## Release ${RELEASE_VERSION}"
+              echo
+              cat commits.txt
+            } > release_notes.md
+          fi
+          echo "## 📝 Release Notes" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          cat release_notes.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Create GitHub release
+        if: needs.create-git-tag.result == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: release/${{ needs.prepare-release.outputs.release_version }}
+          name: Release ${{ needs.prepare-release.outputs.release_version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+
+  # ===========================================================================
+  # Stage 5: Summary
+  # ===========================================================================
+  release-summary:
+    name: 📋 Release Summary
+    runs-on: ubuntu-latest
+    needs: [ prepare-release, publish-nuget, create-git-tag, create-github-release ]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
+          CI_RUN_ID: ${{ needs.prepare-release.outputs.ci_run_id }}
+          NUGET_RESULT: ${{ needs.publish-nuget.result }}
+          TAG_RESULT: ${{ needs.create-git-tag.result }}
+          RELEASE_RESULT: ${{ needs.create-github-release.result }}
+        run: |
+          result_emoji() {
+            case "$1" in
+              success) echo "✅" ;;
+              failure) echo "❌" ;;
+              skipped) echo "⏭️" ;;
+              *) echo "❓" ;;
+            esac
+          }
+
+          {
+            echo "## 📋 Release Summary"
+            echo
+            echo "**Version**: ${RELEASE_VERSION:-unknown}"
+            echo
+            echo "**Source CI run**: ${CI_RUN_ID:-unknown}"
+            echo
+            echo "| Stage | Status |"
+            echo "|-------|--------|"
+            echo "| NuGet.org publish | $(result_emoji "$NUGET_RESULT") $NUGET_RESULT |"
+            echo "| Git tag | $(result_emoji "$TAG_RESULT") $TAG_RESULT |"
+            echo "| GitHub release | $(result_emoji "$RELEASE_RESULT") $RELEASE_RESULT |"
+            echo
+          } >> $GITHUB_STEP_SUMMARY
+
+          if [ "$NUGET_RESULT" == "failure" ] || [ "$TAG_RESULT" == "failure" ] || [ "$RELEASE_RESULT" == "failure" ]; then
+            echo "### ⚠️ Some stages failed - individual jobs can be re-run" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "### 🎉 Release complete" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          echo "**Tag**: \`release/${RELEASE_VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          echo "**NuGet**: https://www.nuget.org/packages/Medino/${RELEASE_VERSION}" >> $GITHUB_STEP_SUMMARY

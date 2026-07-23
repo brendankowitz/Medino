@@ -23,12 +23,12 @@ Adopt the two-stage model used by `brendankowitz/ignixa-fhir`:
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Release notes | Claude via `anthropic-ai/claude-code-action` | `CLAUDE_CODE_OAUTH_TOKEN` already exists in this repo; no new secret needed |
+| Release notes | Claude via `anthropics/claude-code-action@v1` | Same action and `ANTHROPIC_API_KEY` secret already used by `claude.yml`; no new secret needed |
 | CI output between releases | Workflow artifacts only | Nothing reaches any feed without a human |
 | Tag scheme | `release/X.Y.Z` | Matches ignixa; release tags are visually distinct from other tags |
 | Release source | Latest successful `ci.yml` run on `main` | One-click; no run-id bookkeeping |
 | Manual controls | `skip_nuget`, `skip_tag` | Enables a dry run that previews the notes without shipping |
-| `next-version` | `3.0.10` | Latest published is 3.0.9; `tag-prefix` change hides the old bare tags |
+| Version continuity | Push `release/3.0.9` on `e2614ba` | Latest published is 3.0.9; the `tag-prefix` change hides the old bare tags, and this tag makes GitVersion compute 3.0.10 next without a `next-version` pin |
 
 Explicitly out of scope: prerelease flag, `.nupkg` files as GitHub Release
 assets, automated `CHANGELOG.md` updates, Docker, docs deployment.
@@ -41,14 +41,18 @@ assets, automated `CHANGELOG.md` updates, Docker, docs deployment.
 workflow: TrunkBased/preview1
 assembly-versioning-scheme: MajorMinorPatch
 tag-prefix: 'release/'
-next-version: 3.0.10
 ```
 
-`tag-prefix: 'release/'` makes GitVersion read only `release/*` tags. This
+`tag-prefix: 'release/'` makes GitVersion read only `release/*` tags, which
 deliberately orphans the existing bare `2.0.0` / `2.0.2` tags from version
-calculation, so `next-version: 3.0.10` provides the floor until the first
-`release/*` tag exists. After that first tag, TrunkBased increments from it
-normally and `next-version` becomes inert.
+calculation. Continuity comes from a real tag rather than a config pin:
+`release/3.0.9` is pushed on `e2614ba`, the commit whose CI run published 3.0.9
+to NuGet.org. TrunkBased then increments from it, giving 3.0.10 next.
+
+No `next-version` pin: a hardcoded floor drifts out of date silently and has to
+be remembered on every release. (It also fails to parse under
+`TrunkBased/preview1` — GitVersion rejects `next-version: 3.0.10` with
+"Failed to parse 3.0.10 into a Semantic Version".)
 
 ### `.github/workflows/ci.yml`
 
@@ -89,12 +93,13 @@ concurrency:
 
 Jobs:
 
-**`prepare-release`** — checkout with full history; download artifact
-`nuget-packages` from the most recent successful `ci.yml` run on `main` using
-`dawidd6/action-download-artifact`; read `version.txt` and `commit-sha.txt` and
-fail with a clear message if either is empty; re-upload the `.nupkg` files as
-`release-packages` (1-day retention) for downstream jobs.
-Outputs: `release_version`, `commit_sha`.
+**`prepare-release`** — checkout with full history; resolve the most recent
+successful `ci.yml` run on `main` with `gh run list` and download its
+`nuget-packages` artifact with `gh run download` (no third-party action, and
+immune to artifact API version churn); read `version.txt` and `commit-sha.txt`
+and fail with a clear message if either is empty or no `.nupkg` is present;
+re-upload the `.nupkg` files as `release-packages` (1-day retention) for
+downstream jobs. Outputs: `release_version`, `commit_sha`, `ci_run_id`.
 
 **`publish-nuget`** — `needs: prepare-release`, `if: !inputs.skip_nuget`.
 Downloads `release-packages`, sets up .NET, runs
@@ -113,8 +118,9 @@ pushes `release/${release_version}`; logs a warning and no-ops if the tag exists
   previous release tag exists.
 - Collects `git log`, `gh pr view` details for referenced PR numbers, and issues
   closed since the previous release.
-- Feeds that to `anthropic-ai/claude-code-action` (auth:
-  `CLAUDE_CODE_OAUTH_TOKEN`) with a prompt asking for categorised markdown —
+- Writes that to `release-context.md`, then runs `anthropics/claude-code-action@v1`
+  (auth: `ANTHROPIC_API_KEY`, `--allowed-tools "Read,Write"`, `continue-on-error`)
+  with a prompt asking for categorised markdown — ⚠️ Breaking Changes,
   🚀 Features, 🐛 Bug Fixes, 🔧 Maintenance, 📦 Dependencies — plus a Contributors
   section, PR/issue references as markdown links, and no invented content. The
   action writes `release_notes.md`.
@@ -140,11 +146,15 @@ result with ✅ / ❌ / ⏭️, the released version, and the tag name.
 
 ## Verification
 
-- `actionlint` over the changed workflow files.
-- `dotnet pack` locally for both packable projects to confirm the pack commands
-  and output paths.
-- `dotnet-gitversion` (or `dotnet build`) locally to confirm the `tag-prefix` /
-  `next-version` change yields `3.0.10` on this branch.
+Done:
+
+- `actionlint` over both workflows — clean.
+- YAML parse check of `ci.yml`, `publish-release.yml`, `GitVersion.yml`.
+- `dotnet pack` locally for both packable projects — both packages produced.
+- `dotnet-gitversion` on this branch — `MajorMinorPatch: 3.0.10`, confirming the
+  `release/3.0.9` tag plus `tag-prefix` yields the intended next version.
+
+Not provable locally:
 - End-to-end behaviour (artifact hand-off, NuGet push, release creation) can only
   be proven by merging to `main` and running the workflows; the first real run is
   expected to use `skip_nuget: true, skip_tag: true` as a dry run.

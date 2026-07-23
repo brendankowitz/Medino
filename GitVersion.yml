@@ -1,2 +1,8 @@
 workflow: TrunkBased/preview1
 assembly-versioning-scheme: MajorMinorPatch
+
+# Only release/* tags drive versioning; they are created by publish-release.yml.
+# release/3.0.9 (the last version published to NuGet.org) is tagged on e2614ba,
+# so the next release computes as 3.0.10. The legacy bare tags (2.0.0, 2.0.2)
+# are deliberately ignored.
+tag-prefix: 'release/'
