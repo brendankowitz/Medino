@@ -5,16 +5,22 @@ on:
     branches: [ master, main ]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: CI Build and Test
     uses: ./.github/workflows/build-and-test.yml
 
-  publish:
-    name: Publish Packages
+  pack:
+    name: Pack NuGet Packages
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
@@ -31,10 +37,67 @@ jobs:
           10.0.x
         dotnet-quality: 'ga'
 
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v3
+      with:
+        versionSpec: '6.x'
+
+    - name: Determine version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v3
+      with:
+        useConfigFile: true
+
     - name: Pack NuGet packages
       run: |
         dotnet pack src/Medino/Medino.csproj --configuration Release --output ./packages
         dotnet pack src/Medino.Extensions.DependencyInjection/Medino.Extensions.DependencyInjection.csproj --configuration Release --output ./packages
 
-    - name: Push to NuGet
-      run: dotnet nuget push ./packages/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+    - name: Save version and commit SHA for release
+      env:
+        RELEASE_VERSION: ${{ steps.gitversion.outputs.semVer }}
+        COMMIT_SHA: ${{ github.sha }}
+      run: |
+        if [ -z "$RELEASE_VERSION" ]; then
+          echo "::error::GitVersion produced an empty version"
+          exit 1
+        fi
+
+        # The packages are versioned by GitVersion.MsBuild during pack, which is a
+        # separate evaluation from the CLI that produced RELEASE_VERSION. Assert they
+        # agree, so a release can never push packages whose version differs from the
+        # one that gets tagged and announced.
+        for id in Medino Medino.Extensions.DependencyInjection; do
+          if [ ! -f "./packages/$id.$RELEASE_VERSION.nupkg" ]; then
+            echo "::error::Expected ./packages/$id.$RELEASE_VERSION.nupkg but pack produced: $(ls ./packages)"
+            exit 1
+          fi
+        done
+
+        echo "$RELEASE_VERSION" > ./packages/version.txt
+        echo "$COMMIT_SHA" > ./packages/commit-sha.txt
+        echo "Version: $RELEASE_VERSION"
+        echo "Commit SHA: $COMMIT_SHA"
+
+    - name: Upload packages as artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: nuget-packages
+        path: |
+          ./packages/*.nupkg
+          ./packages/version.txt
+          ./packages/commit-sha.txt
+        retention-days: 30
+        if-no-files-found: error
+
+    - name: Package summary
+      run: |
+        echo "## 📦 NuGet Packages Ready for Release" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version**: $(cat ./packages/version.txt)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        for pkg in ./packages/*.nupkg; do
+          echo "- $(basename "$pkg")" >> $GITHUB_STEP_SUMMARY
+        done
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Nothing has been published. Run the **Publish Release** workflow to push these packages to NuGet.org and create a GitHub release." >> $GITHUB_STEP_SUMMARY

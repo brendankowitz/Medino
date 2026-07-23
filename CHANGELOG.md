@@ -1,5 +1,9 @@
 # Changelog
 
+> This file covers 2.x. From 3.x onward, per-release notes are published on the
+> [GitHub Releases page](https://github.com/brendankowitz/Medino/releases) by the
+> Publish Release workflow.
+
 ## Version 2.0.0 - Complete Modernization (2025)
 
 ### Breaking Changes
