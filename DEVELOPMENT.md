@@ -96,6 +96,8 @@ The project uses **GitVersion** in trunk-based mode:
 - Version is calculated from `release/*` tags and the commits after them
 - Tag format: `release/3.0.10`, `release/3.1.0`, etc.
 - Each commit after a tag increments the patch version
+- For a minor or major bump, put `+semver: minor` or `+semver: major` in a commit
+  message (or the squash-merge message of the PR that warrants it)
 
 Release tags are created by the Publish Release workflow — don't tag by hand.
 
@@ -115,19 +117,27 @@ GitHub Actions workflows:
 
 Releasing is a deliberate, manual promotion of a build CI already produced.
 
-1. Confirm the CI run for the commit you want to ship is green on `main`.
+1. Confirm the latest CI run on `main` is green. The workflow always ships the
+   most recent successful CI run — there is no way to pin an older one, so if
+   someone merges while you're releasing, you'll ship their commit too.
 2. Actions → **🚀 Publish Release** → *Run workflow*.
-   - Tick both **skip_nuget** and **skip_tag** for a dry run: it generates the
+   - Tick **both** **skip_nuget** and **skip_tag** for a dry run: it generates the
      release notes and prints them to the job summary without shipping anything.
+     Ticking only `skip_tag` still pushes to NuGet.org, which is irreversible.
 3. Run it again with both unticked to release.
 
 The workflow takes the packages from the latest successful CI run on `main`,
 pushes them to NuGet.org, tags the built commit `release/<version>`, and creates
 a GitHub Release whose notes Claude drafts from the commits, PRs, and issues
-closed since the previous release.
+closed since the previous release. Note that CI cancels in-progress runs when a
+newer commit lands on `main`, so a superseded commit never produces a package
+artifact and can't be released on its own.
 
-Every job is independently re-runnable — `--skip-duplicate` on the NuGet push and
-the existing-tag check make a re-run after a partial failure safe.
+Jobs are independently re-runnable for 7 days after the run (how long the
+intermediate package artifact is kept): `--skip-duplicate` on the NuGet push and
+the existing-tag check make a re-run after a partial failure safe. The tag check
+fails loudly if the tag already exists on a *different* commit. After 7 days,
+re-run Publish Release from scratch instead.
 
 Required secrets: `NUGET_API_KEY`, `ANTHROPIC_API_KEY`.
 

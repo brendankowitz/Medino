@@ -55,13 +55,25 @@ jobs:
 
     - name: Save version and commit SHA for release
       env:
-        RELEASE_VERSION: ${{ steps.gitversion.outputs.nuGetVersion }}
+        RELEASE_VERSION: ${{ steps.gitversion.outputs.semVer }}
         COMMIT_SHA: ${{ github.sha }}
       run: |
         if [ -z "$RELEASE_VERSION" ]; then
           echo "::error::GitVersion produced an empty version"
           exit 1
         fi
+
+        # The packages are versioned by GitVersion.MsBuild during pack, which is a
+        # separate evaluation from the CLI that produced RELEASE_VERSION. Assert they
+        # agree, so a release can never push packages whose version differs from the
+        # one that gets tagged and announced.
+        for id in Medino Medino.Extensions.DependencyInjection; do
+          if [ ! -f "./packages/$id.$RELEASE_VERSION.nupkg" ]; then
+            echo "::error::Expected ./packages/$id.$RELEASE_VERSION.nupkg but pack produced: $(ls ./packages)"
+            exit 1
+          fi
+        done
+
         echo "$RELEASE_VERSION" > ./packages/version.txt
         echo "$COMMIT_SHA" > ./packages/commit-sha.txt
         echo "Version: $RELEASE_VERSION"
@@ -76,6 +88,7 @@ jobs:
           ./packages/version.txt
           ./packages/commit-sha.txt
         retention-days: 30
+        if-no-files-found: error
 
     - name: Package summary
       run: |
