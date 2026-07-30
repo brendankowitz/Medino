@@ -2,9 +2,9 @@ workflow: TrunkBased/preview1
 assembly-versioning-scheme: MajorMinorPatch
 
 # Only release/* tags drive versioning; publish-release.yml creates them. The
-# pre-3.x bare tags (2.0.x) are deliberately orphaned - a release/* tag was seeded
+# pre-3.x bare tag (2.0.0) is deliberately orphaned - a release/* tag was seeded
 # by hand on the last NuGet-published commit so the version stream continues from
-# there instead of restarting.
+# there instead of restarting. Deleting that seed tag restarts numbering.
 #
 # Note: a `next-version` floor cannot be added alongside this prefix - GitVersion
 # parses the configured next-version through tag-prefix and rejects a bare

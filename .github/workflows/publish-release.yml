@@ -20,6 +20,14 @@ concurrency:
   group: publish-release
   cancel-in-progress: false
 
+# The default shell is `bash -e {0}`, which does NOT set pipefail: the exit code of
+# a pipeline is the last command's, so `dotnet nuget push ... | tee` would report
+# success after a failed push. Naming the shell explicitly gets
+# `bash --noprofile --norc -eo pipefail {0}` instead.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # ===========================================================================
   # Stage 1: Prepare - fetch packages from the latest successful CI run on main
@@ -107,6 +115,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+    outputs:
+      skipped_duplicates: ${{ steps.push.outputs.skipped_duplicates }}
 
     steps:
       - name: Download packages
@@ -122,19 +132,25 @@ jobs:
           dotnet-quality: 'ga'
 
       - name: Push packages to NuGet.org
+        id: push
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
         run: |
           # --skip-duplicate keeps a re-run after a partial push safe. It also hides
           # "this version is already published", so say so loudly when it happens.
+          # 2>&1 because NuGet reports the skip on stderr, which tee would otherwise
+          # drop before the grep below can see it.
           dotnet nuget push ./packages/*.nupkg \
             --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate | tee push.log
+            --skip-duplicate 2>&1 | tee push.log
 
-          if grep -qiE 'already exists|conflict' push.log; then
+          if grep -qiE 'already exists|conflict|skipping' push.log; then
+            echo "skipped_duplicates=true" >> $GITHUB_OUTPUT
             echo "::warning::One or more packages were skipped as duplicates - $RELEASE_VERSION was already on NuGet.org. Nothing new was published unless this is a re-run of a partial push."
+          else
+            echo "skipped_duplicates=false" >> $GITHUB_OUTPUT
           fi
 
   # ===========================================================================
@@ -164,11 +180,19 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
           COMMIT_SHA: ${{ needs.prepare-release.outputs.commit_sha }}
+          NUGET_RESULT: ${{ needs.publish-nuget.result }}
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
           TAG_NAME="release/${RELEASE_VERSION}"
+
+          # skip_nuget on its own still tags and releases, which is the recovery path
+          # for "packages are already on NuGet, finish the release". It is also the way
+          # to burn a version on nothing, so make the choice visible in the log.
+          if [ "$NUGET_RESULT" == "skipped" ]; then
+            echo "::warning::skip_nuget was requested - tagging $TAG_NAME and creating a GitHub Release for packages this run did not push. Only correct if $RELEASE_VERSION is already on NuGet.org."
+          fi
 
           if EXISTING=$(git rev-parse "${TAG_NAME}^{commit}" 2>/dev/null); then
             if [ "$EXISTING" != "$COMMIT_SHA" ]; then
@@ -207,6 +231,7 @@ jobs:
        (needs.create-git-tag.result == 'skipped' && inputs.skip_tag))
     outputs:
       notes_ok: ${{ steps.verify.outputs.notes_ok }}
+      context_degraded: ${{ steps.context.outputs.context_degraded }}
 
     steps:
       - name: Checkout code
@@ -222,17 +247,21 @@ jobs:
           COMMIT_SHA: ${{ needs.prepare-release.outputs.commit_sha }}
           TAG_SKIPPED: ${{ inputs.skip_tag }}
         run: |
+          # pipefail (see the workflow `defaults`) makes a `grep` with no matches or a
+          # SIGPIPE from `head` fail the whole assignment, so the tag lookups below are
+          # explicitly allowed to come back empty.
           CURRENT_TAG="release/${RELEASE_VERSION}"
+          DEGRADED=false
 
           if [ "$TAG_SKIPPED" == "true" ]; then
             # Dry run: describe the commit the packages were built from, not HEAD -
             # main may have moved on since that CI run.
             echo "⚠️ Tag skipped - generating notes against $COMMIT_SHA (dry run)"
             CURRENT_REF="$COMMIT_SHA"
-            PREV_TAG=$(git tag -l 'release/*' --sort=-version:refname | head -1)
+            PREV_TAG=$(git tag -l 'release/*' --sort=-version:refname | head -1 || true)
           else
             CURRENT_REF="$CURRENT_TAG"
-            PREV_TAG=$(git tag -l 'release/*' --sort=-version:refname | grep -Fxv "$CURRENT_TAG" | head -1)
+            PREV_TAG=$(git tag -l 'release/*' --sort=-version:refname | grep -Fxv "$CURRENT_TAG" | head -1 || true)
           fi
 
           if [ -z "$PREV_TAG" ]; then
@@ -257,20 +286,29 @@ jobs:
             echo
           } > release-context.md
 
-          PR_NUMBERS=$(git log "$RANGE" --pretty=format:"%s %b" | grep -oE '#[0-9]+' | tr -d '#' | sort -u)
+          PR_NUMBERS=$(git log "$RANGE" --pretty=format:"%s %b" | grep -oE '#[0-9]+' | tr -d '#' | sort -u || true)
 
+          # Enrichment is best-effort. By the time this job runs the packages are on
+          # NuGet.org and the tag is pushed, so a flaky `gh` call must not strand the
+          # release without a GitHub Release - degrade loudly instead of exiting.
           for pr in $PR_NUMBERS; do
             if PR_LINE=$(gh pr view "$pr" --json number,title,labels,author \
                  --jq '"- PR #\(.number): [\(.labels | map(.name) | join(", "))] \(.title) by @\(.author.login)"' 2>/tmp/gh_err); then
-              PR_BODY=$(gh pr view "$pr" --json body --jq '.body // "" | .[0:500]' 2>/dev/null || echo "")
+              if ! PR_BODY=$(gh pr view "$pr" --json body --jq '.body // "" | .[0:500]' 2>/tmp/gh_body_err); then
+                echo "::warning::Could not read the body of #$pr: $(cat /tmp/gh_body_err)"
+                PR_BODY=""
+                DEGRADED=true
+              fi
               # Strip control characters; the text is untrusted and ends up in a prompt.
               printf '%s\n' "$PR_LINE" | tr -d '\000-\010\013\014\016-\037' >> release-context.md
               printf '  Description: %s\n' "$(printf '%s' "$PR_BODY" | tr -d '\000-\010\013\014\016-\037' | tr '\n' ' ')" >> release-context.md
-            elif grep -qiE 'not found|no pull requests|could not resolve' /tmp/gh_err; then
+            elif grep -qi 'could not resolve to a pullrequest' /tmp/gh_err; then
+              # Only this exact GraphQL error means "#N is an issue, not a PR". Matching
+              # anything broader would swallow 404s, auth failures and rate limits.
               echo "  (#$pr is not a pull request - skipping)"
             else
-              echo "::error::gh pr view $pr failed: $(cat /tmp/gh_err)"
-              exit 1
+              echo "::warning::gh pr view $pr failed: $(cat /tmp/gh_err)"
+              DEGRADED=true
             fi
           done
 
@@ -282,6 +320,8 @@ jobs:
 
           if [ -n "$PREV_TAG" ]; then
             PREV_DATE=$(git log -1 --format=%cs "$PREV_TAG")
+            # pipefail makes this `if` test gh's exit code rather than tr's; without it
+            # the else branch below is unreachable and a failed listing is invisible.
             if gh issue list --state closed --search "closed:>=$PREV_DATE" --limit 20 \
                  --json number,title,labels \
                  --jq '.[] | "- Issue #\(.number): [\(.labels | map(.name) | join(", "))] \(.title)"' \
@@ -289,9 +329,11 @@ jobs:
               :
             else
               echo "::warning::Could not list closed issues: $(cat /tmp/gh_issue_err)"
+              DEGRADED=true
             fi
           fi
 
+          echo "context_degraded=$DEGRADED" >> $GITHUB_OUTPUT
           echo "--- release-context.md ---"
           cat release-context.md
 
@@ -334,6 +376,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
           NOTES_OUTCOME: ${{ steps.notes.outcome }}
+          CONTEXT_DEGRADED: ${{ steps.context.outputs.context_degraded }}
         run: |
           NOTES_OK=true
 
@@ -360,6 +403,10 @@ jobs:
             echo
             if [ "$NOTES_OK" == "false" ]; then
               echo "> ⚠️ Generation failed - this is the raw commit list."
+              echo
+            fi
+            if [ "$CONTEXT_DEGRADED" == "true" ]; then
+              echo "> ⚠️ Some pull request or issue context could not be fetched, so these notes may be incomplete."
               echo
             fi
             cat release_notes.md
@@ -419,9 +466,11 @@ jobs:
           CI_RUN_ID: ${{ needs.prepare-release.outputs.ci_run_id }}
           PREPARE_RESULT: ${{ needs.prepare-release.result }}
           NUGET_RESULT: ${{ needs.publish-nuget.result }}
+          NUGET_DUPLICATES: ${{ needs.publish-nuget.outputs.skipped_duplicates }}
           TAG_RESULT: ${{ needs.create-git-tag.result }}
           NOTES_RESULT: ${{ needs.generate-release-notes.result }}
           NOTES_OK: ${{ needs.generate-release-notes.outputs.notes_ok }}
+          CONTEXT_DEGRADED: ${{ needs.generate-release-notes.outputs.context_degraded }}
           RELEASE_RESULT: ${{ needs.create-github-release.result }}
         run: |
           result_emoji() {
@@ -443,12 +492,21 @@ jobs:
             echo "| Stage | Status |"
             echo "|-------|--------|"
             echo "| Prepare | $(result_emoji "$PREPARE_RESULT") $PREPARE_RESULT |"
-            echo "| NuGet.org publish | $(result_emoji "$NUGET_RESULT") $NUGET_RESULT |"
+            echo "| NuGet.org publish | $(result_emoji "$NUGET_RESULT") $NUGET_RESULT$([ "$NUGET_DUPLICATES" == "true" ] && echo ' (all or some packages already published)') |"
             echo "| Git tag | $(result_emoji "$TAG_RESULT") $TAG_RESULT |"
-            echo "| Release notes | $(result_emoji "$NOTES_RESULT") $NOTES_RESULT$([ "$NOTES_OK" == "false" ] && echo ' (fell back to commit list)') |"
+            echo "| Release notes | $(result_emoji "$NOTES_RESULT") $NOTES_RESULT$([ "$NOTES_OK" == "false" ] && echo ' (fell back to commit list)')$([ "$CONTEXT_DEGRADED" == "true" ] && echo ' (incomplete context)') |"
             echo "| GitHub release | $(result_emoji "$RELEASE_RESULT") $RELEASE_RESULT |"
             echo
           } >> $GITHUB_STEP_SUMMARY
+
+          # A cancelled run may have published packages before it stopped, so it is
+          # never a success even though no stage reports `failure`.
+          for stage_result in "$PREPARE_RESULT" "$NUGET_RESULT" "$TAG_RESULT" "$NOTES_RESULT" "$RELEASE_RESULT"; do
+            if [ "$stage_result" == "cancelled" ]; then
+              echo "### ⚠️ Run cancelled part-way through - check what was already published before re-running" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
+          done
 
           if [ "$PREPARE_RESULT" != "success" ] || [ "$NUGET_RESULT" == "failure" ] ||
              [ "$TAG_RESULT" == "failure" ] || [ "$NOTES_RESULT" == "failure" ] ||
@@ -457,9 +515,16 @@ jobs:
             exit 1
           fi
 
-          if [ "$NUGET_RESULT" != "success" ] && [ "$TAG_RESULT" != "success" ]; then
+          # Only both stages being skipped is a dry run. Anything else that reaches here
+          # with a missing stage is a half-finished release.
+          if [ "$NUGET_RESULT" == "skipped" ] && [ "$TAG_RESULT" == "skipped" ]; then
             echo "### ℹ️ Dry run - nothing was published, tagged, or released" >> $GITHUB_STEP_SUMMARY
             exit 0
+          fi
+
+          if [ "$TAG_RESULT" == "success" ] && [ "$RELEASE_RESULT" != "success" ]; then
+            echo "### ⚠️ Tagged \`release/${RELEASE_VERSION}\` but the GitHub Release did not complete ($RELEASE_RESULT) - re-run **🎁 Create GitHub Release**" >> $GITHUB_STEP_SUMMARY
+            exit 1
           fi
 
           {

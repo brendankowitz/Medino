@@ -5,9 +5,9 @@ Branch: `dev/publish-pipeline`
 
 ## Problem
 
-`ci.yml` pushes both packages to NuGet.org on every push to `main`. There is no
-human gate, no git tag, no GitHub Release, and no release notes. Releasing should
-be a deliberate act, separate from continuous integration.
+Before this change, `ci.yml` pushed both packages to NuGet.org on every push to
+`main`. There was no human gate, no git tag, no GitHub Release, and no release
+notes. Releasing should be a deliberate act, separate from continuous integration.
 
 ## Goal
 
@@ -27,7 +27,7 @@ Adopt the two-stage model used by `brendankowitz/ignixa-fhir`:
 | CI output between releases | Workflow artifacts only | Nothing reaches any feed without a human |
 | Tag scheme | `release/X.Y.Z` | Matches ignixa; release tags are visually distinct from other tags |
 | Release source | Latest successful `ci.yml` run on `main` | One-click; no run-id bookkeeping |
-| Manual controls | `skip_nuget`, `skip_tag` | Enables a dry run that previews the notes without shipping |
+| Manual controls | `skip_nuget`, `skip_tag` | Both together enable a dry run that previews the notes without shipping; `skip_nuget` alone is the "packages are already on NuGet, finish the release" recovery path |
 | Version continuity | Push `release/3.0.9` on `e2614ba` | Latest published is 3.0.9; the `tag-prefix` change hides the old bare tags, and this tag makes GitVersion compute 3.0.10 next without a `next-version` pin |
 
 Explicitly out of scope: prerelease flag, `.nupkg` files as GitHub Release
@@ -44,7 +44,7 @@ tag-prefix: 'release/'
 ```
 
 `tag-prefix: 'release/'` makes GitVersion read only `release/*` tags, which
-deliberately orphans the existing bare `2.0.0` / `2.0.2` tags from version
+deliberately orphans the existing bare `2.0.0` tag from version
 calculation. Continuity comes from a real tag rather than a config pin:
 `release/3.0.9` is pushed on `e2614ba`, the commit whose CI run published 3.0.9
 to NuGet.org. TrunkBased then increments from it, giving 3.0.10 next.
@@ -153,10 +153,15 @@ must not hold a token that can write to the repository.
   may have moved past the commit being released. Falls back to full history when
   no previous release tag exists.
 - Collects `git log`, `gh pr view` details for referenced PR numbers, and issues
-  closed since the previous release. A `#123` that isn't a PR is skipped; any
-  other `gh` failure (403, rate limit, network) fails the step rather than
-  silently producing context-free notes.
-- Writes that to `release-context.md` with control characters stripped, then runs
+  closed since the previous release. A `#123` that isn't a PR is skipped — matched
+  strictly on GitHub's "could not resolve to a PullRequest" error, so a 403, rate
+  limit or network failure is not mistaken for one. Those emit a warning and mark
+  the context degraded rather than failing the step: by this point the packages are
+  published and the tag is pushed, so aborting would strand the release without a
+  GitHub Release.
+- Writes that to `release-context.md`, with control characters stripped from the
+  untrusted PR and issue text (commit subjects go in as `git log` renders them),
+  then runs
   `anthropics/claude-code-action@v1` (auth: `ANTHROPIC_API_KEY`,
   `--allowed-tools "Read,Write"`, `continue-on-error`) with a prompt asking for
   categorised markdown — ⚠️ Breaking Changes, 🚀 Features, 🐛 Bug Fixes,
@@ -179,10 +184,12 @@ tag and the notes succeeded. Downloads the notes artifact and calls
 
 **`release-summary`** — `if: always()`, `permissions: {}`. Step-summary table of
 every stage (including prepare and note generation, flagging a commit-list
-fallback) with ✅ / ❌ / ⏭️, plus the version and source CI run id. It reports what
-happened rather than mirroring job results: any failure exits non-zero, a run
-where nothing was published or tagged is labelled a dry run, and the NuGet URL
-and tag name are printed only when those stages actually succeeded.
+fallback, degraded context, or a duplicate-skipped NuGet push) with ✅ / ❌ / ⏭️,
+plus the version and source CI run id. It reports what happened rather than
+mirroring job results: any failure or cancellation exits non-zero, a tag without a
+completed GitHub Release exits non-zero as a half-finished release, only a run
+where NuGet publish *and* tagging were both skipped is labelled a dry run, and the
+NuGet URL and tag name are printed only when those stages actually succeeded.
 
 ## Failure Handling
 
@@ -194,8 +201,12 @@ and tag name are printed only when those stages actually succeeded.
 - An existing tag on the same commit is a no-op; on a different commit it fails.
 - Jobs are re-runnable from the Actions UI for 7 days, the retention of the
   intermediate `release-packages` artifact they consume.
-- Release-note generation never blocks the release: it degrades to a commit list,
-  and the degradation is reported in the summary table.
+- Release-note generation never blocks the release: a failed model call degrades to
+  a commit list, and a failed `gh` lookup for a PR or issue degrades to a partial
+  context. Both are reported in the summary table.
+- Every `run:` block uses `shell: bash` (via workflow `defaults`) so `-o pipefail`
+  applies. Without it the exit code of `dotnet nuget push ... | tee` would be
+  `tee`'s, and a failed push would be reported as a successful publish.
 
 ## Verification
 

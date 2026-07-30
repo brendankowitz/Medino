@@ -9,6 +9,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# `bash` rather than the default `bash -e {0}`, so `-o pipefail` applies and a
+# failure inside a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     name: CI Build and Test

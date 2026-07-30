@@ -158,7 +158,7 @@ release process; this section describes what each workflow is for.
 
 ### 1. Reusable Build and Test Workflow (`build-and-test.yml`)
 - Shared workflow called by both PR and CI workflows
-- Sets up .NET SDK (configurable version, defaults to 9.0.x)
+- Sets up the .NET 8, 9 and 10 SDKs (hardcoded in the workflow — it takes no inputs)
 - Restores dependencies, builds in Release configuration (builds for ALL target frameworks: net8.0, net9.0 and net10.0)
 - Runs tests with trx logger and uploads test results as artifacts
 
@@ -180,7 +180,8 @@ release process; this section describes what each workflow is for.
 - Promotes the latest successful CI build on `main`: pushes to NuGet.org
   (requires `NUGET_API_KEY`), tags `release/<version>`, and creates a GitHub
   Release with notes drafted by Claude (requires `ANTHROPIC_API_KEY`)
-- `skip_nuget` + `skip_tag` together give a dry run
+- `skip_nuget` + `skip_tag` together give a dry run; `skip_nuget` on its own still
+  tags and releases, which is the recovery path for packages already on NuGet.org
 - See DEVELOPMENT.md for the step-by-step process
 
 ### 5. Claude Workflow (`claude.yml`)
@@ -202,8 +203,8 @@ release process; this section describes what each workflow is for.
 - Handler classes named `<RequestType>Handler` (e.g., `CreateUserCommandHandler`)
 
 ### Target Frameworks
-- Core library targets: `net8.0` and `net9.0`
-- Tests target: `net8.0`
+- Core library targets: `net8.0`, `net9.0` and `net10.0`
+- Tests target: `net10.0`
 - Uses latest C# language version with nullable reference types enabled
 
 ## Migration from MediatR
