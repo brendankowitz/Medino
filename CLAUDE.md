@@ -153,14 +153,14 @@ The project uses **xUnit** as its testing framework:
 
 ## GitHub Actions Workflows
 
-The repository includes three GitHub Actions workflows:
+The repository includes five GitHub Actions workflows. See DEVELOPMENT.md for the
+release process; this section describes what each workflow is for.
 
 ### 1. Reusable Build and Test Workflow (`build-and-test.yml`)
 - Shared workflow called by both PR and CI workflows
-- Sets up .NET SDK (configurable version, defaults to 9.0.x)
-- Restores dependencies, builds in Release configuration (builds for ALL target frameworks: net8.0 and net9.0)
+- Sets up the .NET 8, 9 and 10 SDKs (hardcoded in the workflow — it takes no inputs)
+- Restores dependencies, builds in Release configuration (builds for ALL target frameworks: net8.0, net9.0 and net10.0)
 - Runs tests with trx logger and uploads test results as artifacts
-- Tests run on .NET 9 (the latest), but build validates both target frameworks
 
 ### 2. PR Validation Workflow (`pr.yml`)
 - Triggers on pull requests to `master` or `main` branches
@@ -171,10 +171,21 @@ The repository includes three GitHub Actions workflows:
 - Triggers on pushes to `master` or `main` branches
 - Can be manually triggered via `workflow_dispatch`
 - Uses the shared build-and-test workflow
-- Includes commented-out package publishing job that when enabled will:
-  - Use `dotnet pack` which automatically builds for ALL target frameworks (net8.0 and net9.0)
-  - Create NuGet packages containing both framework versions
-  - Push packages to NuGet.org (requires `NUGET_API_KEY` secret)
+- On `main`, packs both packages (all target frameworks) and uploads them as the
+  `nuget-packages` artifact together with the version and commit SHA
+- Publishes nothing — releasing is a separate, manual step
+
+### 4. Publish Release Workflow (`publish-release.yml`)
+- Manual (`workflow_dispatch`) only
+- Promotes the latest successful CI build on `main`: pushes to NuGet.org
+  (requires `NUGET_API_KEY`), tags `release/<version>`, and creates a GitHub
+  Release with notes drafted by Claude (requires `ANTHROPIC_API_KEY`)
+- `skip_nuget` + `skip_tag` together give a dry run; `skip_nuget` on its own still
+  tags and releases, which is the recovery path for packages already on NuGet.org
+- See DEVELOPMENT.md for the step-by-step process
+
+### 5. Claude Workflow (`claude.yml`)
+- Responds to `@claude` mentions on issues, PRs and reviews
 
 ## Development Guidelines
 
@@ -192,8 +203,8 @@ The repository includes three GitHub Actions workflows:
 - Handler classes named `<RequestType>Handler` (e.g., `CreateUserCommandHandler`)
 
 ### Target Frameworks
-- Core library targets: `net8.0` and `net9.0`
-- Tests target: `net8.0`
+- Core library targets: `net8.0`, `net9.0` and `net10.0`
+- Tests target: `net10.0`
 - Uses latest C# language version with nullable reference types enabled
 
 ## Migration from MediatR
@@ -209,7 +220,7 @@ See MIGRATION.md for detailed migration guide.
 ## Package Information
 
 - **Package ID**: `Medino`
-- **Version**: 2.0.0
+- **Version**: computed by GitVersion from `release/*` tags — not stored in any file
 - **License**: MIT
 - **Dependencies**: Only `Microsoft.Extensions.DependencyInjection.Abstractions` for core library
 - **Separate package**: `Medino.Extensions.DependencyInjection` for DI integration
