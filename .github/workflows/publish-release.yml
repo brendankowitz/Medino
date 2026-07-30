@@ -70,14 +70,13 @@ jobs:
       - name: Read version and commit SHA
         id: version
         run: |
-          RELEASE_VERSION=$(cat ./packages/version.txt 2>/dev/null | tr -d '[:space:]')
-          COMMIT_SHA=$(cat ./packages/commit-sha.txt 2>/dev/null | tr -d '[:space:]')
-
-          if [ -z "$RELEASE_VERSION" ]; then
+          # Read via redirection rather than `cat |` so a missing or unreadable file
+          # reports the actionable message below instead of an opaque pipefail exit.
+          if ! RELEASE_VERSION=$(tr -d '[:space:]' < ./packages/version.txt) || [ -z "$RELEASE_VERSION" ]; then
             echo "::error::Failed to read release version from the CI artifact"
             exit 1
           fi
-          if [ -z "$COMMIT_SHA" ]; then
+          if ! COMMIT_SHA=$(tr -d '[:space:]' < ./packages/commit-sha.txt) || [ -z "$COMMIT_SHA" ]; then
             echo "::error::Failed to read commit SHA from the CI artifact"
             exit 1
           fi
@@ -248,20 +247,22 @@ jobs:
           TAG_SKIPPED: ${{ inputs.skip_tag }}
         run: |
           # pipefail (see the workflow `defaults`) makes a `grep` with no matches or a
-          # SIGPIPE from `head` fail the whole assignment, so the tag lookups below are
-          # explicitly allowed to come back empty.
+          # SIGPIPE from `head` fail the whole assignment, so the filters below are
+          # explicitly allowed to come back empty. The `git` calls stay outside those
+          # guarded pipelines so a genuine git failure still stops the job.
           CURRENT_TAG="release/${RELEASE_VERSION}"
           DEGRADED=false
+          RELEASE_TAGS=$(git tag -l 'release/*' --sort=-version:refname)
 
           if [ "$TAG_SKIPPED" == "true" ]; then
             # Dry run: describe the commit the packages were built from, not HEAD -
             # main may have moved on since that CI run.
             echo "⚠️ Tag skipped - generating notes against $COMMIT_SHA (dry run)"
             CURRENT_REF="$COMMIT_SHA"
-            PREV_TAG=$(git tag -l 'release/*' --sort=-version:refname | head -1 || true)
+            PREV_TAG=$(printf '%s\n' "$RELEASE_TAGS" | head -1 || true)
           else
             CURRENT_REF="$CURRENT_TAG"
-            PREV_TAG=$(git tag -l 'release/*' --sort=-version:refname | grep -Fxv "$CURRENT_TAG" | head -1 || true)
+            PREV_TAG=$(printf '%s\n' "$RELEASE_TAGS" | grep -Fxv "$CURRENT_TAG" | head -1 || true)
           fi
 
           if [ -z "$PREV_TAG" ]; then
@@ -286,7 +287,8 @@ jobs:
             echo
           } > release-context.md
 
-          PR_NUMBERS=$(git log "$RANGE" --pretty=format:"%s %b" | grep -oE '#[0-9]+' | tr -d '#' | sort -u || true)
+          COMMIT_MESSAGES=$(git log "$RANGE" --pretty=format:"%s %b")
+          PR_NUMBERS=$(printf '%s\n' "$COMMIT_MESSAGES" | grep -oE '#[0-9]+' | tr -d '#' | sort -u || true)
 
           # Enrichment is best-effort. By the time this job runs the packages are on
           # NuGet.org and the tag is pushed, so a flaky `gh` call must not strand the
@@ -396,19 +398,28 @@ jobs:
             } > release_notes.md
           fi
 
+          # Disclose incomplete notes in the release body itself. The step summary is
+          # only seen by whoever opens the Actions run, but the body is what consumers
+          # read - a thin release must not look like a complete one.
+          if [ "$NOTES_OK" == "false" ] || [ "$CONTEXT_DEGRADED" == "true" ]; then
+            {
+              if [ "$NOTES_OK" == "false" ]; then
+                echo "> ⚠️ Automated release notes could not be generated - this is the raw commit list."
+              fi
+              if [ "$CONTEXT_DEGRADED" == "true" ]; then
+                echo "> ⚠️ Some pull request or issue context could not be fetched, so these notes may be incomplete."
+              fi
+              echo
+              cat release_notes.md
+            } > release_notes.annotated.md
+            mv release_notes.annotated.md release_notes.md
+          fi
+
           echo "notes_ok=$NOTES_OK" >> $GITHUB_OUTPUT
 
           {
             echo "## 📝 Release Notes"
             echo
-            if [ "$NOTES_OK" == "false" ]; then
-              echo "> ⚠️ Generation failed - this is the raw commit list."
-              echo
-            fi
-            if [ "$CONTEXT_DEGRADED" == "true" ]; then
-              echo "> ⚠️ Some pull request or issue context could not be fetched, so these notes may be incomplete."
-              echo
-            fi
             cat release_notes.md
           } >> $GITHUB_STEP_SUMMARY
 
@@ -472,6 +483,8 @@ jobs:
           NOTES_OK: ${{ needs.generate-release-notes.outputs.notes_ok }}
           CONTEXT_DEGRADED: ${{ needs.generate-release-notes.outputs.context_degraded }}
           RELEASE_RESULT: ${{ needs.create-github-release.result }}
+          SKIP_NUGET: ${{ inputs.skip_nuget }}
+          SKIP_TAG: ${{ inputs.skip_tag }}
         run: |
           result_emoji() {
             case "$1" in
@@ -515,6 +528,27 @@ jobs:
             exit 1
           fi
 
+          # Every skipped stage must be explained by the input that asked for it. A run
+          # cancelled after a job has started leaves the jobs behind it `skipped` rather
+          # than `cancelled` (because of their `!cancelled()` guards), so this is what
+          # catches a release that stopped half-way.
+          if [ "$NUGET_RESULT" == "skipped" ] && [ "$SKIP_NUGET" != "true" ]; then
+            echo "### ⚠️ NuGet publish never ran and \`skip_nuget\` was not set - the run stopped part-way" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          if [ "$TAG_RESULT" == "skipped" ] && [ "$SKIP_TAG" != "true" ]; then
+            echo "### ⚠️ Tagging never ran and \`skip_tag\` was not set - check NuGet.org before re-running" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Notes are generated in every mode, dry runs included, so anything other than
+          # success means the run stopped before the release was described.
+          if [ "$NOTES_RESULT" != "success" ]; then
+            echo "### ⚠️ Release notes did not complete ($NOTES_RESULT) - the release is incomplete" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
           # Only both stages being skipped is a dry run. Anything else that reaches here
           # with a missing stage is a half-finished release.
           if [ "$NUGET_RESULT" == "skipped" ] && [ "$TAG_RESULT" == "skipped" ]; then
@@ -528,7 +562,13 @@ jobs:
           fi
 
           {
-            echo "### 🎉 Release complete"
+            if [ "$NUGET_RESULT" == "skipped" ] || [ "$TAG_RESULT" == "skipped" ]; then
+              # e.g. skip_nuget to finish a release whose packages are already live,
+              # or skip_tag to publish without cutting the tag yet.
+              echo "### ✅ Finished, with stages skipped by request"
+            else
+              echo "### 🎉 Release complete"
+            fi
             echo
             if [ "$TAG_RESULT" == "success" ]; then
               echo "**Tag**: \`release/${RELEASE_VERSION}\`"

@@ -163,7 +163,7 @@ re-runnable from the Actions UI:
 | Tagged, GitHub Release failed | Re-run **🎁 Create GitHub Release**; the run is marked failed until it completes |
 | Notes came out as a bare commit list | `ANTHROPIC_API_KEY` or the Claude action failed — the release still shipped; edit the release body by hand |
 | Summary says "incomplete context" | A `gh` call for a PR or issue failed; the notes are missing some entries but nothing is broken |
-| Run was cancelled mid-release | Check NuGet.org and the tag list before re-running — packages may already be public |
+| Run was cancelled mid-release | The summary fails the run and names the stage that never ran — check NuGet.org and the tag list before re-running, packages may already be public |
 | 7-day artifact expired | Re-run the whole Publish Release workflow |
 | 30-day CI artifact expired | Push an empty commit to `main` (or re-run CI) to produce a new build |
 

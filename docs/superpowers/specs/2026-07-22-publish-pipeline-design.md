@@ -186,10 +186,15 @@ tag and the notes succeeded. Downloads the notes artifact and calls
 every stage (including prepare and note generation, flagging a commit-list
 fallback, degraded context, or a duplicate-skipped NuGet push) with ✅ / ❌ / ⏭️,
 plus the version and source CI run id. It reports what happened rather than
-mirroring job results: any failure or cancellation exits non-zero, a tag without a
-completed GitHub Release exits non-zero as a half-finished release, only a run
-where NuGet publish *and* tagging were both skipped is labelled a dry run, and the
-NuGet URL and tag name are printed only when those stages actually succeeded.
+mirroring job results: any failure or cancellation exits non-zero, a stage that
+was skipped *without* its `skip_*` input being set is treated as a run that
+stopped part-way and exits non-zero (this is what catches a cancellation, since
+the `!cancelled()` guards leave downstream jobs `skipped` rather than
+`cancelled`), release notes are required to have succeeded in every mode, a tag
+without a completed GitHub Release exits non-zero as a half-finished release,
+only a run where NuGet publish *and* tagging were both skipped is labelled a dry
+run, and the NuGet URL and tag name are printed only when those stages actually
+succeeded.
 
 ## Failure Handling
 
@@ -203,10 +208,13 @@ NuGet URL and tag name are printed only when those stages actually succeeded.
   intermediate `release-packages` artifact they consume.
 - Release-note generation never blocks the release: a failed model call degrades to
   a commit list, and a failed `gh` lookup for a PR or issue degrades to a partial
-  context. Both are reported in the summary table.
+  context. Both are reported in the summary table *and* prepended to the published
+  release body, so a thin release never looks like a complete one.
 - Every `run:` block uses `shell: bash` (via workflow `defaults`) so `-o pipefail`
   applies. Without it the exit code of `dotnet nuget push ... | tee` would be
-  `tee`'s, and a failed push would be reported as a successful publish.
+  `tee`'s, and a failed push would be reported as a successful publish. The `git`
+  calls that feed the note-context pipelines are kept out of the `|| true`-guarded
+  pipelines so a genuine git failure still stops the job.
 
 ## Verification
 
