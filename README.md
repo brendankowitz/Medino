@@ -466,4 +466,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. See the [code review guidelines](.github/instructions/medino-review.instructions.md) and [security review guidelines](.github/instructions/medino-security.instructions.md) for review expectations, and the [development guide](DEVELOPMENT.md) for build, test, and release procedures.
+Contributions are welcome! Please feel free to submit a Pull Request. See the [code review guidelines](REVIEW.md) and [security review guidelines](.github/instructions/medino-security.instructions.md) for review expectations, and the [development guide](DEVELOPMENT.md) for build, test, and release procedures.

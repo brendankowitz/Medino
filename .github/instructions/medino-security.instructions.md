@@ -5,7 +5,7 @@ excludeAgent: "cloud-agent"
 
 # Medino security review guidelines
 
-Use these checks alongside the [code review guidelines](medino-review.instructions.md) for affected boundaries. Identify the lower-trust principal, input, intended control, affected resource, and unauthorized outcome. Distinguish demonstrated vulnerabilities from concerns needing validation; a missing best practice alone is not a vulnerability.
+Use these checks alongside the [code review guidelines](../../REVIEW.md) for affected boundaries. Identify the lower-trust principal, input, intended control, affected resource, and unauthorized outcome. Distinguish demonstrated vulnerabilities from concerns needing validation; a missing best practice alone is not a vulnerability.
 
 ## In-process trust and execution
 
