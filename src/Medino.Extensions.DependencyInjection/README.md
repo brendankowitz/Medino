@@ -130,7 +130,7 @@ public class UsersController : ControllerBase
 ## Requirements
 
 - .NET 10 or .NET 11 (minimum supported runtime: .NET 10)
-- For the `net10.0` asset: `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.9 or later
+- For the `net10.0` asset: `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.15 or later
 - For the `net11.0` asset: .NET 11 supplies `Microsoft.Extensions.DependencyInjection.Abstractions` via the shared framework
 
 ## Documentation
