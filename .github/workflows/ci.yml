@@ -35,7 +35,7 @@ jobs:
         fetch-depth: 0  # GitVersion needs full history
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: |
           8.0.x
@@ -44,13 +44,13 @@ jobs:
         dotnet-quality: 'ga'
 
     - name: Install GitVersion
-      uses: gittools/actions/gitversion/setup@v3
+      uses: gittools/actions/gitversion/setup@v4.7.0
       with:
         versionSpec: '6.x'
 
     - name: Determine version
       id: gitversion
-      uses: gittools/actions/gitversion/execute@v3
+      uses: gittools/actions/gitversion/execute@v4.7.0
       with:
         useConfigFile: true
 
