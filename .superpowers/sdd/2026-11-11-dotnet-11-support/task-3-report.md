@@ -25,3 +25,26 @@ Completed the documentation updates for Task 3. No public APIs, runtime behavior
 ## Self-review
 
 The support statements match the package and test project target frameworks and the shared workflow's SDK/test matrix. Existing README usage examples and unrelated release guidance were preserved. Only Task 3 documentation files and this requested report were changed by this task.
+
+## Round 1 fix
+
+### Change
+
+Qualified the `Microsoft.Extensions.DependencyInjection.Abstractions` requirement by target framework in `src/Medino.Extensions.DependencyInjection/README.md`: version 10.0.9 or later is required for the `net10.0` asset, while the .NET 11 shared framework supplies it for `net11.0`. The supported framework matrix and .NET 11 parameterless `AddMedino()` reflection caveat are unchanged.
+
+### Validation
+
+Commands run:
+
+```text
+rg -n "net8\.0|net9\.0|\.NET 8|\.NET 9" README.md DEVELOPMENT.md MIGRATION.md CLAUDE.md src
+git diff --check
+```
+
+Output:
+
+```text
+MIGRATION.md:7:The next major release removes the `net8.0` and `net9.0` package assets. Applications using this release must target .NET 10 or .NET 11; .NET 10 is the minimum supported runtime. Retarget affected applications and update their SDK/runtime deployment as needed before upgrading.
+```
+
+`git diff --check` produced no output and exited successfully.
