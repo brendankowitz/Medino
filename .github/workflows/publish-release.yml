@@ -119,15 +119,15 @@ jobs:
 
     steps:
       - name: Download packages
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-packages
           path: ./packages
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
           dotnet-quality: 'ga'
 
       - name: Push packages to NuGet.org
@@ -447,12 +447,12 @@ jobs:
 
     steps:
       - name: Download release notes
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-notes
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: release/${{ needs.prepare-release.outputs.release_version }}
           name: Release ${{ needs.prepare-release.outputs.release_version }}
