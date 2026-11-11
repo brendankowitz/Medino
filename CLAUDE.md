@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Medino** is a lightweight, high-performance in-process mediator for .NET 8+ that implements the mediator pattern for CQRS, commands, queries, events, and pipeline behaviors. It provides a simplified migration path from MediatR with explicit async naming conventions and no external dependencies beyond Microsoft.Extensions.DependencyInjection.Abstractions.
+**Medino** is a lightweight, high-performance in-process mediator for .NET 10 and .NET 11 (minimum supported runtime: .NET 10) that implements the mediator pattern for CQRS, commands, queries, events, and pipeline behaviors. It provides a simplified migration path from MediatR with explicit async naming conventions and no external dependencies beyond Microsoft.Extensions.DependencyInjection.Abstractions.
 
 ## Build & Test Commands
 
@@ -158,9 +158,9 @@ release process; this section describes what each workflow is for.
 
 ### 1. Reusable Build and Test Workflow (`build-and-test.yml`)
 - Shared workflow called by both PR and CI workflows
-- Sets up the .NET 8, 9 and 10 SDKs (hardcoded in the workflow — it takes no inputs)
-- Restores dependencies, builds in Release configuration (builds for ALL target frameworks: net8.0, net9.0 and net10.0)
-- Runs tests with trx logger and uploads test results as artifacts
+- Sets up the stable .NET 10 and 11 SDKs (hardcoded in the workflow — it takes no inputs)
+- Restores dependencies and builds in Release configuration for all target frameworks: `net10.0` and `net11.0`
+- Runs tests separately for `net10.0` and `net11.0`, with trx logger and test-result artifacts
 
 ### 2. PR Validation Workflow (`pr.yml`)
 - Triggers on pull requests to `master` or `main` branches
@@ -171,7 +171,7 @@ release process; this section describes what each workflow is for.
 - Triggers on pushes to `master` or `main` branches
 - Can be manually triggered via `workflow_dispatch`
 - Uses the shared build-and-test workflow
-- On `main`, packs both packages (all target frameworks) and uploads them as the
+- On `main`, packs both packages (target frameworks `net10.0` and `net11.0`) and uploads them as the
   `nuget-packages` artifact together with the version and commit SHA
 - Publishes nothing — releasing is a separate, manual step
 
@@ -203,8 +203,8 @@ release process; this section describes what each workflow is for.
 - Handler classes named `<RequestType>Handler` (e.g., `CreateUserCommandHandler`)
 
 ### Target Frameworks
-- Core library targets: `net8.0`, `net9.0` and `net10.0`
-- Tests target: `net10.0`
+- Core library and DI integration target: `net10.0` and `net11.0`
+- Tests target: `net10.0` and `net11.0`
 - Uses latest C# language version with nullable reference types enabled
 
 ## Migration from MediatR

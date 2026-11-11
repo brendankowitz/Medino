@@ -2,6 +2,8 @@
 
 Microsoft.Extensions.DependencyInjection integration for Medino mediator.
 
+Supports .NET 10 and .NET 11 (`net10.0` and `net11.0`); .NET 10 is the minimum supported runtime.
+
 ## Installation
 
 ```bash
@@ -23,6 +25,8 @@ services.AddMedino(typeof(Program).Assembly);
 var serviceProvider = services.BuildServiceProvider();
 var mediator = serviceProvider.GetRequiredService<IMediator>();
 ```
+
+The parameterless `services.AddMedino()` overload scans the calling assembly by using `Assembly.GetCallingAssembly()`. On .NET 11, it may throw if the application has disabled stack-trace support. In that case, use the existing explicit-assembly overload shown above, for example `services.AddMedino(typeof(Program).Assembly)`. This is a runtime limitation of that overload, not a change to Medino's registration behavior.
 
 ### Fluent Configuration
 
@@ -125,8 +129,8 @@ public class UsersController : ControllerBase
 
 ## Requirements
 
-- .NET 8.0 or later
-- Microsoft.Extensions.DependencyInjection.Abstractions 8.0.0 or later
+- .NET 10 or .NET 11 (minimum supported runtime: .NET 10)
+- Microsoft.Extensions.DependencyInjection.Abstractions 10.0.9 or later
 
 ## Documentation
 

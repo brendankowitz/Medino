@@ -89,6 +89,7 @@ Packages are created with:
 - GitVersion for automatic semantic versioning
 - SourceLink for debugging support
 - Reproducible builds enabled
+- Both packages target `net10.0` and `net11.0` (.NET 10 is the minimum supported runtime)
 
 ## Versioning
 
@@ -112,7 +113,9 @@ GitHub Actions workflows:
 
 - **PR Validation** (`.github/workflows/pr.yml`) - Runs on pull requests
 - **CI Build** (`.github/workflows/ci.yml`) - Runs on push to main/master
-  - Builds and tests all target frameworks
+  - Installs the stable .NET 10 and .NET 11 SDKs
+  - Builds both package and test projects for `net10.0` and `net11.0`
+  - Runs the test suite separately for each target framework
   - On `main` only, packs both NuGet packages and uploads them as the
     `nuget-packages` artifact (30-day retention), together with `version.txt` and
     `commit-sha.txt`. Pushes to `master` build and test but produce no artifact.

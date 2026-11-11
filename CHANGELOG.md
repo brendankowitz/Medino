@@ -4,6 +4,10 @@
 > [GitHub Releases page](https://github.com/brendankowitz/Medino/releases) by the
 > Publish Release workflow.
 
+## Next major release - Supported .NET versions
+
+This major release removes the `net8.0` and `net9.0` package assets. Consumers must move to .NET 10 or .NET 11; .NET 10 is the minimum supported runtime. Retarget affected applications before upgrading.
+
 ## Version 2.0.0 - Complete Modernization (2025)
 
 ### Breaking Changes

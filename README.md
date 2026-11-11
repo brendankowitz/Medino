@@ -3,7 +3,7 @@
 [![NuGet](https://img.shields.io/nuget/v/Medino.svg)](https://www.nuget.org/packages/Medino/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A lightweight, high-performance in-process mediator for .NET 8+ with support for commands, queries, events, pipeline behaviors, and exception handling.
+A lightweight, high-performance in-process mediator for .NET 10 and .NET 11 with support for commands, queries, events, pipeline behaviors, and exception handling. .NET 10 is the minimum supported runtime.
 
 ## Why Medino?
 
@@ -25,7 +25,7 @@ Medino provides a simple, lightweight mediator pattern implementation when you n
 - ✅ **Async/await** - Full async support with cancellation tokens
 - ✅ **No external dependencies** - Only requires Microsoft.Extensions.DependencyInjection.Abstractions
 - ✅ **High performance** - Minimal overhead with handler caching
-- ✅ **.NET 8 & .NET 9** - Built for modern .NET
+- ✅ **.NET 10 & .NET 11** - Targets `net10.0` and `net11.0`
 
 ## Installation
 
