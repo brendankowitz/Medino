@@ -2,6 +2,10 @@
 
 This guide will help you migrate from MediatR 12.5 to Medino. The migration is straightforward as Medino provides similar features with a simplified API.
 
+## Supported .NET versions
+
+The next major release removes the `net8.0` and `net9.0` package assets. Applications using this release must target .NET 10 or .NET 11; .NET 10 is the minimum supported runtime. Retarget affected applications and update their SDK/runtime deployment as needed before upgrading.
+
 ## Key Differences
 
 ### Namespace
@@ -514,7 +518,7 @@ If you encounter issues during migration:
 - ✅ **Simpler API**: Fewer interfaces and concepts to learn
 - ✅ **Better performance**: Optimized handler resolution and caching
 - ✅ **Explicit async**: All methods clearly indicate async behavior
-- ✅ **Modern .NET**: Built for .NET 8+ with latest language features
+- ✅ **Modern .NET**: Built for .NET 10 and .NET 11 with latest language features
 - ✅ **No commercial licensing concerns**: BSD-3-Clause license
 
 ## Comparison Table
@@ -531,7 +535,7 @@ If you encounter issues during migration:
 | Streaming | ✅ | ❌ (not yet) |
 | Pre/Post Processors | ✅ | Use Pipeline Behaviors |
 | Base Behavior Classes | ❌ | ✅ (Before/After/Base) |
-| Target Framework | .NET Standard 2.0+ | .NET 8+ |
+| Target Framework | .NET Standard 2.0+ | .NET 10 and .NET 11 (minimum: .NET 10) |
 | Test Framework | Any (typically NUnit) | xUnit |
 | License | Moving to commercial | MIT |
 

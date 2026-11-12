@@ -1,6 +1,6 @@
 # Medino
 
-A lightweight, high-performance in-process mediator for .NET 8+ that implements the mediator pattern for CQRS, commands, queries, events, and pipeline behaviors.
+A lightweight, high-performance in-process mediator for .NET 10 and .NET 11 that implements the mediator pattern for CQRS, commands, queries, events, and pipeline behaviors. .NET 10 is the minimum supported runtime.
 
 ## Features
 

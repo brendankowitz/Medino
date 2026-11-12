@@ -24,6 +24,14 @@
       ]
     },
     {
+      "description": "net10.0-only Microsoft.Extensions references track the .NET 10 servicing line",
+      "matchPackageNames": [
+        "/^Microsoft\\.Extensions\\./"
+      ],
+      "matchCurrentVersion": "/^10\\./",
+      "allowedVersions": "/^10\\./"
+    },
+    {
       "groupName": "build tooling",
       "matchPackageNames": [
         "/^GitVersion/",

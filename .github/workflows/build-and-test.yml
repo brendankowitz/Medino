@@ -17,9 +17,8 @@ jobs:
       uses: actions/setup-dotnet@v6
       with:
         dotnet-version: |
-          8.0.x
-          9.0.x
           10.0.x
+          11.0.x
         dotnet-quality: 'ga'
 
     - name: Restore dependencies
@@ -28,15 +27,18 @@ jobs:
     - name: Build
       run: dotnet build src/Medino.slnx --configuration Release --no-restore
 
-    - name: Run tests
-      run: dotnet test src/Medino.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" --results-directory ./TestResults
+    - name: Run tests (.NET 10)
+      run: dotnet test src/Medino.slnx --framework net10.0 --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-net10.trx" --collect:"XPlat Code Coverage" --results-directory ./TestResults/net10
+
+    - name: Run tests (.NET 11)
+      run: dotnet test src/Medino.slnx --framework net11.0 --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-net11.trx" --collect:"XPlat Code Coverage" --results-directory ./TestResults/net11
 
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v7
       with:
         name: test-results
-        path: '**/test-results.trx'
+        path: 'TestResults/**/*.trx'
 
     - name: Upload coverage reports
       if: always()
