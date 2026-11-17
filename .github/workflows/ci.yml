@@ -43,13 +43,13 @@ jobs:
         dotnet-quality: 'ga'
 
     - name: Install GitVersion
-      uses: gittools/actions/gitversion/setup@v4.7.0
+      uses: gittools/actions/gitversion/setup@v4.7.2
       with:
         versionSpec: '6.x'
 
     - name: Determine version
       id: gitversion
-      uses: gittools/actions/gitversion/execute@v4.7.0
+      uses: gittools/actions/gitversion/execute@v4.7.2
       with:
         configFilePath: GitVersion.yml
 
