@@ -4,9 +4,17 @@
 > [GitHub Releases page](https://github.com/brendankowitz/Medino/releases) by the
 > Publish Release workflow.
 
-## Next major release - Supported .NET versions
+## Next major release
+
+### Supported .NET versions
 
 This major release removes the `net8.0` and `net9.0` package assets. Consumers must move to .NET 10 or .NET 11; .NET 10 is the minimum supported runtime. Retarget affected applications before upgrading.
+
+### Registration changes
+
+- `AddMedino` now validates its arguments (null `services`, `assemblies`, `configuration`, and null elements throw).
+- Scanning throws `InvalidOperationException` when two different classes implement the same closed command or request handler interface, including a non-abstract handler plus a subclass of it (make the base abstract or move one out of the scanned assemblies); previously the last registration silently won. See MIGRATION.md.
+- Scanning skips open generic handler types instead of registering them as unusable open-generic descriptors.
 
 ## Version 2.0.0 - Complete Modernization (2025)
 

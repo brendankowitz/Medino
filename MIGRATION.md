@@ -388,6 +388,18 @@ If you have a large codebase, consider this approach:
 
 **Solution:** Ensure you're scanning the correct assemblies with `AddMedino()`.
 
+### Issue: "Multiple handlers found" thrown from `AddMedino`
+
+MediatR registered request handlers with `TryAdd`, so when several classes matched, the first one found by scanning was used and the others were silently ignored. Medino throws `InvalidOperationException` when scanning finds two different classes implementing the same closed `ICommandHandler<T>` or `IRequestHandler<TRequest, TResponse>`. This includes a non-abstract handler together with a class that derives from it.
+
+**Solution:** Make the base class abstract, or move one of the handlers out of the scanned assemblies. Notification handlers and behaviors are unaffected; multiple are still allowed.
+
+### Issue: Open generic handler is not registered
+
+Assembly scanning skips open generic types (for example `class GenericHandler<T> : ICommandHandler<T>`).
+
+**Solution:** Register open generic command and request handlers manually, for example `services.AddTransient(typeof(ICommandHandler<>), typeof(GenericHandler<>))`.
+
 ## Testing Framework
 
 Medino uses **xUnit** for its test suite. If you're migrating tests from a project that used NUnit alongside MediatR, here are the key differences:
