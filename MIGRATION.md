@@ -390,7 +390,7 @@ If you have a large codebase, consider this approach:
 
 ### Issue: "Multiple handlers found" thrown from `AddMedino`
 
-MediatR tolerated more than one handler for the same request, with the last registration silently winning. Medino throws `InvalidOperationException` when scanning finds two different classes implementing the same closed `ICommandHandler<T>` or `IRequestHandler<TRequest, TResponse>`. This includes a non-abstract handler together with a class that derives from it.
+MediatR registered request handlers with `TryAdd`, so when several classes matched, the first one found by scanning was used and the others were silently ignored. Medino throws `InvalidOperationException` when scanning finds two different classes implementing the same closed `ICommandHandler<T>` or `IRequestHandler<TRequest, TResponse>`. This includes a non-abstract handler together with a class that derives from it.
 
 **Solution:** Make the base class abstract, or move one of the handlers out of the scanned assemblies. Notification handlers and behaviors are unaffected; multiple are still allowed.
 

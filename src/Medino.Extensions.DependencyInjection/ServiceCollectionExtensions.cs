@@ -78,7 +78,7 @@ public static class ServiceCollectionExtensions
 
         if (!config.Assemblies.Any())
         {
-            throw new ArgumentException("No assemblies found to scan. Supply at least one assembly.");
+            throw new ArgumentException("No assemblies found to scan. Supply at least one assembly.", nameof(configuration));
         }
 
         return services.AddMedino(config.Assemblies.ToArray());

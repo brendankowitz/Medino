@@ -16,7 +16,10 @@ public class SecondDuplicatedCommandHandler : ICommandHandler<DuplicatedCommand>
     public Task HandleAsync(DuplicatedCommand command, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
-public class FirstDuplicatedRequestHandler : IRequestHandler<DuplicatedRequest, string>
+// Never reached at runtime: scanning throws on the command pair above first. Request and command
+// handler interfaces share the same duplicate check in ServiceCollectionExtensions.RegisterHandlers,
+// so this pair documents that request handlers are covered by the same branch.
+public class FirstDuplicatedRequestHandler: IRequestHandler<DuplicatedRequest, string>
 {
     public Task<string> HandleAsync(DuplicatedRequest request, CancellationToken cancellationToken = default) => Task.FromResult("first");
 }
