@@ -29,6 +29,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Medino\Medino.csproj" />
     <ProjectReference Include="..\Medino.Extensions.DependencyInjection\Medino.Extensions.DependencyInjection.csproj" />
+    <ProjectReference Include="..\Medino.Tests.DuplicateHandlers\Medino.Tests.DuplicateHandlers.csproj" />
+    <ProjectReference Include="..\Medino.Tests.OpenGenericHandlers\Medino.Tests.OpenGenericHandlers.csproj" />
   </ItemGroup>
 
 </Project>

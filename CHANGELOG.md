@@ -8,6 +8,12 @@
 
 This major release removes the `net8.0` and `net9.0` package assets. Consumers must move to .NET 10 or .NET 11; .NET 10 is the minimum supported runtime. Retarget affected applications before upgrading.
 
+### Registration changes
+
+- `AddMedino` now validates its arguments (null `services`, `assemblies`, `configuration`, and null elements throw).
+- Scanning throws `InvalidOperationException` when two different classes implement the same closed command or request handler interface; previously the last registration silently won.
+- Scanning skips open generic handler types instead of registering them as unusable open-generic descriptors.
+
 ## Version 2.0.0 - Complete Modernization (2025)
 
 ### Breaking Changes

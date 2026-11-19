@@ -50,6 +50,12 @@ The `AddMedino` extension automatically scans assemblies and registers:
 
 All services are registered as **transient** by default.
 
+Scanning rules:
+
+- If scanning finds two different classes implementing the same closed command or request handler interface (for example two `ICommandHandler<CreateUser>` implementations), `AddMedino` throws `InvalidOperationException` naming both types. Passing the same assembly more than once is fine. Multiple notification handlers and behaviors remain allowed.
+- Open generic types (for example `class GenericHandler<T> : ICommandHandler<T>`) are not registered by scanning. Register them manually with `services.AddTransient(typeof(ICommandHandler<>), typeof(GenericHandler<>))`.
+- `AddMedino` and `MediatorConfiguration` throw `ArgumentNullException` / `ArgumentException` for null arguments or null assembly/type elements.
+
 ## Configuration Options
 
 ### Register from Multiple Assemblies

@@ -2,4 +2,6 @@
   <Project Path="Medino\Medino.csproj" />
   <Project Path="Medino.Extensions.DependencyInjection\Medino.Extensions.DependencyInjection.csproj" />
   <Project Path="Medino.Tests\Medino.Tests.csproj" />
+  <Project Path="Medino.Tests.DuplicateHandlers\Medino.Tests.DuplicateHandlers.csproj" />
+  <Project Path="Medino.Tests.OpenGenericHandlers\Medino.Tests.OpenGenericHandlers.csproj" />
 </Solution>

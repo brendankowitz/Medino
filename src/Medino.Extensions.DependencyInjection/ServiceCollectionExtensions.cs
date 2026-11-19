@@ -17,18 +17,33 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection</returns>
     public static IServiceCollection AddMedino(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return services.AddMedino(Assembly.GetCallingAssembly());
     }
 
     /// <summary>
     /// Adds Medino services to the specified <see cref="IServiceCollection"/>.
+    /// Command and request handlers found by scanning must be unique per closed handler interface;
+    /// open generic types are skipped.
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="assemblies">Assemblies to scan for handlers</param>
     /// <returns>The service collection</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="services"/> or <paramref name="assemblies"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="assemblies"/> is empty or contains a null element.</exception>
+    /// <exception cref="InvalidOperationException">Two different classes implement the same command or request handler interface.</exception>
     public static IServiceCollection AddMedino(this IServiceCollection services, params Assembly[] assemblies)
     {
-        if (!assemblies.Any())
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(assemblies);
+
+        if (Array.IndexOf(assemblies, null) >= 0)
+        {
+            throw new ArgumentException("Assemblies must not contain null elements.", nameof(assemblies));
+        }
+
+        if (assemblies.Length == 0)
         {
             throw new ArgumentException("No assemblies found to scan. Supply at least one assembly.", nameof(assemblies));
         }
@@ -55,6 +70,9 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection</returns>
     public static IServiceCollection AddMedino(this IServiceCollection services, Action<MediatorConfiguration> configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         var config = new MediatorConfiguration();
         configuration(config);
 
@@ -71,12 +89,12 @@ public static class ServiceCollectionExtensions
         // Register command handlers
         var commandHandlerType = typeof(ICommandHandler<>);
         var requestHandlerType = typeof(IRequestHandler<,>);
-        var registeredHandlers = new HashSet<(Type interfaceType, Type implementationType)>();
+        var registeredHandlers = new Dictionary<Type, Type>();
 
         foreach (var assembly in assemblies)
         {
             var types = assembly.GetTypes()
-                .Where(t => t.IsClass && !t.IsAbstract)
+                .Where(t => t.IsClass && !t.IsAbstract && !t.ContainsGenericParameters)
                 .ToList();
 
             foreach (var type in types)
@@ -92,9 +110,20 @@ public static class ServiceCollectionExtensions
 
                         if (genericTypeDef == commandHandlerType || genericTypeDef == requestHandlerType)
                         {
-                            // Track registrations to avoid duplicates
-                            if (registeredHandlers.Add((@interface, type)))
+                            // Same implementation seen again (e.g. assembly passed twice) is a no-op;
+                            // a different one would silently shadow the first in the container.
+                            if (registeredHandlers.TryGetValue(@interface, out var existing))
                             {
+                                if (existing != type)
+                                {
+                                    throw new InvalidOperationException(
+                                        $"Multiple handlers found for {@interface}: {existing} and {type}. " +
+                                        "Command and request handlers must have exactly one implementation.");
+                                }
+                            }
+                            else
+                            {
+                                registeredHandlers.Add(@interface, type);
                                 services.AddTransient(@interface, type);
                             }
                         }
@@ -112,7 +141,7 @@ public static class ServiceCollectionExtensions
         foreach (var assembly in assemblies)
         {
             var types = assembly.GetTypes()
-                .Where(t => t.IsClass && !t.IsAbstract)
+                .Where(t => t.IsClass && !t.IsAbstract && !t.ContainsGenericParameters)
                 .ToList();
 
             foreach (var type in types)
@@ -277,6 +306,13 @@ public class MediatorConfiguration
     /// <returns>This configuration</returns>
     public MediatorConfiguration RegisterServicesFromAssemblies(params Assembly[] assemblies)
     {
+        ArgumentNullException.ThrowIfNull(assemblies);
+
+        if (Array.IndexOf(assemblies, null) >= 0)
+        {
+            throw new ArgumentException("Assemblies must not contain null elements.", nameof(assemblies));
+        }
+
         Assemblies.AddRange(assemblies);
         return this;
     }
@@ -288,6 +324,13 @@ public class MediatorConfiguration
     /// <returns>This configuration</returns>
     public MediatorConfiguration RegisterServicesFromAssemblyContaining(params Type[] types)
     {
+        ArgumentNullException.ThrowIfNull(types);
+
+        if (Array.IndexOf(types, null) >= 0)
+        {
+            throw new ArgumentException("Types must not contain null elements.", nameof(types));
+        }
+
         Assemblies.AddRange(types.Select(t => t.Assembly).Distinct());
         return this;
     }
